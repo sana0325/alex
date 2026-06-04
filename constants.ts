@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   minAdx: 18,
   notificationsEnabled: true,
   refreshSeconds: 30,
-  contrarian: true,
+  contrarian: false,
 };
 
 export const SETTINGS_KEY = 'gold_scalp_settings';
