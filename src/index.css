@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Inter:wght@400;500;600;700;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,4 +7,102 @@ body {
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
   font-family: 'Inter', sans-serif;
+  background-color: #020c1b;
+  background-image:
+    linear-gradient(rgba(0, 245, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 245, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.font-orbitron { font-family: 'Orbitron', monospace; }
+.font-tech    { font-family: 'Share Tech Mono', monospace; }
+
+/* ── Glow shadows ──────────────────────────────── */
+.glow-green  { box-shadow: 0 0 24px rgba(0,255,136,.45), 0 0 60px rgba(0,255,136,.12); }
+.glow-red    { box-shadow: 0 0 24px rgba(255,45,85,.45),  0 0 60px rgba(255,45,85,.12); }
+.glow-cyan   { box-shadow: 0 0 18px rgba(0,245,255,.35),  0 0 50px rgba(0,245,255,.10); }
+.glow-gold   { box-shadow: 0 0 18px rgba(255,184,0,.40),  0 0 50px rgba(255,184,0,.10); }
+.glow-purple { box-shadow: 0 0 18px rgba(180,70,255,.35), 0 0 50px rgba(180,70,255,.10); }
+
+.text-glow-green  { text-shadow: 0 0 18px rgba(0,255,136,.9); }
+.text-glow-red    { text-shadow: 0 0 18px rgba(255,45,85,.9); }
+.text-glow-cyan   { text-shadow: 0 0 18px rgba(0,245,255,.9); }
+.text-glow-gold   { text-shadow: 0 0 14px rgba(255,184,0,.9); }
+.text-glow-purple { text-shadow: 0 0 14px rgba(180,70,255,.9); }
+
+/* ── Animations ─────────────────────────────────── */
+@keyframes radar {
+  0%   { transform: scale(0.6); opacity: .9; }
+  100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes scan {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+@keyframes flicker {
+  0%,90%,100% { opacity:1; }
+  92%,98%     { opacity:.7; }
+}
+@keyframes data-in {
+  0%   { opacity:0; transform: translateY(6px); }
+  100% { opacity:1; transform: translateY(0); }
+}
+@keyframes bar-fill {
+  from { width: 0; }
+}
+@keyframes hud-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes blink {
+  0%,100% { opacity:1; }
+  50%     { opacity:.3; }
+}
+
+.animate-radar   { animation: radar 2.4s ease-out infinite; }
+.animate-radar-2 { animation: radar 2.4s ease-out infinite .8s; }
+.animate-radar-3 { animation: radar 2.4s ease-out infinite 1.6s; }
+.animate-scan    { animation: scan 3s linear infinite; }
+.animate-flicker { animation: flicker 5s ease-in-out infinite; }
+.animate-data-in { animation: data-in .4s ease-out both; }
+.animate-hud-spin{ animation: hud-spin 8s linear infinite; }
+.animate-blink   { animation: blink 1.2s ease-in-out infinite; }
+
+/* ── Scanline overlay ───────────────────────────── */
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0,0,0,.06) 3px,
+    rgba(0,0,0,.06) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── HUD corner brackets ────────────────────────── */
+.hud-corners {
+  position: relative;
+}
+.hud-corners::before,
+.hud-corners::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  z-index: 2;
+}
+.hud-corners::before {
+  top: 0; left: 0;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+}
+.hud-corners::after {
+  bottom: 0; right: 0;
+  border-bottom: 2px solid currentColor;
+  border-right: 2px solid currentColor;
 }

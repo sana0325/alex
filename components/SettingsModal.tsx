@@ -9,177 +9,220 @@ interface Props {
   onClose: () => void;
 }
 
+const S = {
+  bg:     'rgba(3,14,32,.98)',
+  card:   'rgba(5,22,50,.9)',
+  border: 'rgba(0,245,255,.12)',
+  accent: '#00F5FF',
+  gold:   '#FFB800',
+  green:  '#00FF88',
+  red:    '#FF2D55',
+  purple: '#B347FF',
+};
+
 export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) => {
   const [s, setS] = useState<AppSettings>({ ...settings });
   const keyStatus = getKeyStatus();
 
-  const field = (label: string, key: keyof AppSettings, type: 'text' | 'number' = 'text', hint?: string) => (
+  const field = (label: string, key: keyof AppSettings, type: 'text' | 'number' = 'text') => (
     <div>
-      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      <label className="block font-tech text-xs mb-1" style={{ color: '#ffffff35' }}>{label}</label>
       <input
         type={type}
         value={s[key] as string | number}
         onChange={e => setS(prev => ({
           ...prev,
-          [key]: type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value
+          [key]: type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value,
         }))}
-        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-yellow-500"
+        className="w-full rounded-lg px-3 py-2.5 font-tech text-sm text-white focus:outline-none"
+        style={{
+          background: 'rgba(0,245,255,.04)',
+          border: '1px solid rgba(0,245,255,.15)',
+        }}
       />
-      {hint && <p className="text-xs text-gray-600 mt-1">{hint}</p>}
     </div>
   );
 
+  const Section: React.FC<{ icon: string; title: string; children: React.ReactNode }> =
+    ({ icon, title, children }) => (
+      <div>
+        <p className="font-orbitron text-xs font-bold mb-3 flex items-center gap-2"
+           style={{ color: S.accent }}>
+          <span>{icon}</span>{title}
+        </p>
+        {children}
+      </div>
+    );
+
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-end">
-      <div className="w-full bg-gray-950 border-t border-gray-800 rounded-t-2xl max-h-[92vh] overflow-y-auto">
-        <div className="sticky top-0 bg-gray-950 flex items-center justify-between px-5 py-4 border-b border-gray-800">
-          <h2 className="text-lg font-bold text-yellow-400">⚙ Налаштування</h2>
-          <button onClick={onClose} className="text-gray-400 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
+    <div className="fixed inset-0 z-50 flex items-end" style={{ background: 'rgba(0,0,0,.85)' }}>
+      <div className="w-full rounded-t-2xl max-h-[92vh] overflow-y-auto"
+           style={{ background: S.bg, borderTop: `1px solid ${S.border}` }}>
+
+        {/* Header */}
+        <div className="sticky top-0 flex items-center justify-between px-5 py-4"
+             style={{ background: S.bg, borderBottom: `1px solid ${S.border}` }}>
+          <p className="font-orbitron text-base font-black" style={{ color: S.accent, textShadow: `0 0 12px ${S.accent}80` }}>
+            ⚙ SYSTEM CONFIG
+          </p>
+          <button onClick={onClose}
+                  className="w-8 h-8 rounded flex items-center justify-center font-orbitron text-sm"
+                  style={{ color: S.accent, border: `1px solid ${S.accent}40` }}>✕</button>
         </div>
 
         <div className="p-5 space-y-6">
-          {/* Built-in keys status */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📡 Вбудовані API ключі</p>
-            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+
+          {/* API key status */}
+          <Section icon="◈" title="API KEY POOL · 8 KEYS">
+            <div className="rounded-xl p-4" style={{ background: S.card, border: `1px solid ${S.border}` }}>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-300 font-medium">8 ключів TwelveData</span>
-                <span className="text-xs text-green-400 font-bold">● Активний #{keyStatus.active + 1}</span>
+                <span className="font-tech text-xs" style={{ color: '#ffffff50' }}>TwelveData · 8 keys</span>
+                <span className="font-tech text-xs animate-blink" style={{ color: S.green }}>
+                  ● ACTIVE #{keyStatus.active + 1}
+                </span>
               </div>
-              {/* Key bars */}
-              <div className="flex gap-1 mb-2">
+              <div className="flex gap-1 mb-2 items-end h-10">
                 {keyStatus.calls.map((calls, i) => {
                   const pct = Math.min(100, (calls / 790) * 100);
+                  const active = i === keyStatus.active;
                   return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-                      <div className="w-full h-8 bg-gray-800 rounded relative overflow-hidden">
-                        <div
-                          className={`absolute bottom-0 left-0 right-0 transition-all ${
-                            i === keyStatus.active ? 'bg-yellow-500' : pct > 80 ? 'bg-red-600' : 'bg-green-700'
-                          }`}
-                          style={{ height: `${Math.max(4, pct)}%` }}
-                        />
+                    <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                      <div className="w-full rounded-sm relative overflow-hidden" style={{ height: 32, background: '#ffffff08' }}>
+                        <div className="absolute bottom-0 left-0 right-0 rounded-sm transition-all"
+                             style={{
+                               height: `${Math.max(4, pct)}%`,
+                               background: active ? S.gold : pct > 80 ? S.red : S.green,
+                               boxShadow: active ? `0 0 8px ${S.gold}` : '',
+                             }} />
                       </div>
-                      <span className="text-xs text-gray-600">{i + 1}</span>
+                      <span className="font-tech text-xs" style={{ color: active ? S.gold : '#ffffff20' }}>{i + 1}</span>
                     </div>
                   );
                 })}
               </div>
-              <p className="text-xs text-gray-500 text-center">
-                Сьогодні: {keyStatus.total} / {keyStatus.limit} запитів
+              <p className="font-tech text-xs text-center" style={{ color: '#ffffff25' }}>
+                {keyStatus.total} / {keyStatus.limit} requests today
               </p>
             </div>
-          </div>
+          </Section>
 
-          {/* Optional custom key */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2">🔑 Свій ключ (необов'язково)</p>
-            <div className="space-y-1">
-              {field('Власний TwelveData API Key (має пріоритет)', 'apiKey', 'text')}
-              <p className="text-xs text-gray-600">
-                Залишіть порожнім — використовуються вбудовані ключі автоматично
-              </p>
-            </div>
-          </div>
+          {/* Custom key */}
+          <Section icon="🔑" title="CUSTOM KEY (OPTIONAL)">
+            {field('Your TwelveData API key (takes priority over pool)', 'apiKey', 'text')}
+            <p className="font-tech text-xs mt-1" style={{ color: '#ffffff20' }}>
+              Leave empty — pool rotates automatically
+            </p>
+          </Section>
 
           {/* Symbol */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📊 Інструмент</p>
+          <Section icon="◎" title="INSTRUMENT">
             <div className="grid grid-cols-4 gap-2">
-              {SYMBOL_OPTIONS.map(sym => (
-                <button
-                  key={sym.value}
-                  onClick={() => setS(prev => ({ ...prev, symbol: sym.value }))}
-                  className={`py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    s.symbol === sym.value ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400'
-                  }`}
-                >
-                  {sym.display}
-                </button>
-              ))}
+              {SYMBOL_OPTIONS.map(sym => {
+                const active = s.symbol === sym.value;
+                return (
+                  <button key={sym.value}
+                    onClick={() => setS(prev => ({ ...prev, symbol: sym.value }))}
+                    className="py-2 rounded-lg font-tech text-xs transition-all"
+                    style={{
+                      background: active ? `${S.gold}20` : 'rgba(255,255,255,.04)',
+                      border: `1px solid ${active ? S.gold : 'rgba(255,255,255,.08)'}`,
+                      color: active ? S.gold : '#ffffff40',
+                      boxShadow: active ? `0 0 10px ${S.gold}40` : '',
+                    }}>
+                    {sym.display}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </Section>
 
           {/* Timeframe */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">⏱ Таймфрейм</p>
+          <Section icon="⏱" title="TIMEFRAME">
             <div className="flex gap-2">
-              {TIMEFRAME_OPTIONS.map(tf => (
-                <button
-                  key={tf.value}
-                  onClick={() => setS(prev => ({ ...prev, timeframe: tf.value as AppSettings['timeframe'] }))}
-                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                    s.timeframe === tf.value ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400'
-                  }`}
-                >
-                  {tf.label}
-                </button>
-              ))}
+              {TIMEFRAME_OPTIONS.map(tf => {
+                const active = s.timeframe === tf.value;
+                return (
+                  <button key={tf.value}
+                    onClick={() => setS(prev => ({ ...prev, timeframe: tf.value as AppSettings['timeframe'] }))}
+                    className="flex-1 py-2.5 rounded-lg font-tech text-sm transition-all"
+                    style={{
+                      background: active ? `${S.accent}20` : 'rgba(255,255,255,.04)',
+                      border: `1px solid ${active ? S.accent : 'rgba(255,255,255,.08)'}`,
+                      color: active ? S.accent : '#ffffff40',
+                      boxShadow: active ? `0 0 10px ${S.accent}30` : '',
+                    }}>
+                    {tf.label}
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          </Section>
 
           {/* Thresholds */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🎯 Поріг сигналу (з 26)</p>
+          <Section icon="🎯" title="SIGNAL THRESHOLD (OF 26)">
             <div className="grid grid-cols-2 gap-3">
-              {field('Лонг (мін. голосів)', 'longThreshold', 'number')}
-              {field('Шорт (мін. голосів)', 'shortThreshold', 'number')}
+              {field('Long (min votes)', 'longThreshold', 'number')}
+              {field('Short (min votes)', 'shortThreshold', 'number')}
             </div>
-          </div>
+          </Section>
 
           {/* Risk */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">💰 Ризик-менеджмент</p>
+          <Section icon="💰" title="RISK MANAGEMENT">
             <div className="grid grid-cols-2 gap-3">
-              {field('Стоп = ATR ×', 'slMultiplier', 'number')}
-              {field('Тейк = ATR ×', 'tpMultiplier', 'number')}
+              {field('Stop = ATR ×', 'slMultiplier', 'number')}
+              {field('Take = ATR ×', 'tpMultiplier', 'number')}
             </div>
-          </div>
+          </Section>
 
           {/* Session */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🕐 Сесія (UTC годин)</p>
+          <Section icon="🕐" title="SESSION (UTC HOURS)">
             <div className="grid grid-cols-2 gap-3">
-              {field('Початок', 'sessionStartUTC', 'number')}
-              {field('Кінець', 'sessionEndUTC', 'number')}
+              {field('Start', 'sessionStartUTC', 'number')}
+              {field('End', 'sessionEndUTC', 'number')}
             </div>
-            <p className="text-xs text-gray-600 mt-2">Лондон: 7–16 · Нью-Йорк: 12–20 · Рекомендовано: 7–20</p>
-          </div>
+            <p className="font-tech text-xs mt-2" style={{ color: '#ffffff20' }}>
+              London 7–16 · New York 12–20 · Recommended 7–20
+            </p>
+          </Section>
 
           {/* Filters */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🔍 Фільтри</p>
+          <Section icon="⬡" title="FILTERS">
             <div className="grid grid-cols-2 gap-3">
-              {field('Мін. ADX', 'minAdx', 'number')}
-              {field('Оновлення (сек.)', 'refreshSeconds', 'number')}
+              {field('Min ADX', 'minAdx', 'number')}
+              {field('Refresh (sec)', 'refreshSeconds', 'number')}
             </div>
-          </div>
+          </Section>
 
-          {/* Contrarian mode */}
-          <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">⟳ Режим торгівлі</p>
+          {/* Contrarian */}
+          <Section icon="⟳" title="TRADE MODE">
             <button
               onClick={() => setS(prev => ({ ...prev, contrarian: !prev.contrarian }))}
-              className={`w-full py-4 rounded-xl text-sm font-bold border-2 transition-colors ${
-                s.contrarian
-                  ? 'bg-purple-900/50 border-purple-500 text-purple-300'
-                  : 'bg-gray-800 border-gray-700 text-gray-400'
-              }`}
-            >
-              {s.contrarian ? '⟳ КОНТР-РЕЖИМ: ПРОТИ ІНДИКАТОРІВ' : '→ ЗВИЧАЙНИЙ: ЗА ІНДИКАТОРАМИ'}
+              className="w-full py-4 rounded-xl font-orbitron text-xs font-bold transition-all"
+              style={{
+                background: s.contrarian ? 'rgba(180,70,255,.15)' : 'rgba(255,255,255,.04)',
+                border: `2px solid ${s.contrarian ? S.purple : 'rgba(255,255,255,.1)'}`,
+                color: s.contrarian ? S.purple : '#ffffff40',
+                boxShadow: s.contrarian ? `0 0 16px ${S.purple}40` : '',
+              }}>
+              {s.contrarian ? '⟳ CONTRARIAN — AGAINST INDICATORS' : '→ NORMAL — WITH INDICATORS'}
             </button>
-            <p className="text-xs text-gray-600 mt-2 text-center">
+            <p className="font-tech text-xs mt-2 text-center" style={{ color: '#ffffff20' }}>
               {s.contrarian
-                ? 'Індикатори кажуть ЛОНГ → ми у ШОРТІ, і навпаки'
-                : 'Торгуємо за напрямком більшості індикаторів'}
+                ? 'Indicators say LONG → we go SHORT, and vice versa'
+                : 'We trade in the direction of the indicator majority'}
             </p>
-          </div>
+          </Section>
 
+          {/* Save */}
           <button
             onClick={() => { onSave(s); onClose(); }}
-            className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl text-base"
-          >
-            ✓ Зберегти налаштування
+            className="w-full py-4 rounded-xl font-orbitron text-sm font-black transition-all"
+            style={{
+              background: `linear-gradient(135deg, ${S.gold}dd, ${S.gold}99)`,
+              color: '#020c1b',
+              boxShadow: `0 0 24px ${S.gold}60`,
+            }}>
+            ✓ SAVE CONFIG
           </button>
         </div>
       </div>
