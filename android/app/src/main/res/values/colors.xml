@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background_dark">#0A0A0F</color>
+    <color name="surface_dark">#12121C</color>
+    <color name="surface_variant">#1E1E2E</color>
+    <color name="gold">#FFD700</color>
+    <color name="gold_dark">#B8860B</color>
+    <color name="green_accent">#00C851</color>
+    <color name="red_accent">#FF4444</color>
+    <color name="orange_accent">#FF8800</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#9090A0</color>
+    <color name="white">#FFFFFF</color>
+    <color name="nav_item_tint">#FFD700</color>
+</resources>

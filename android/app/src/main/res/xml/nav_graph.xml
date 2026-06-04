@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/nav_dashboard">
+
+    <fragment
+        android:id="@+id/nav_dashboard"
+        android:name="com.goldscalp.bot.ui.dashboard.DashboardFragment"
+        android:label="Dashboard" />
+
+    <fragment
+        android:id="@+id/nav_history"
+        android:name="com.goldscalp.bot.ui.history.HistoryFragment"
+        android:label="History" />
+
+    <fragment
+        android:id="@+id/nav_settings"
+        android:name="com.goldscalp.bot.ui.settings.SettingsFragment"
+        android:label="Settings" />
+
+</navigation>
