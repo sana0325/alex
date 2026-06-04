@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gold Scalp Signals</string>
+    <string name="title_activity_main">Gold Scalp Signals</string>
+    <string name="package_name">com.goldscalp.signals</string>
+    <string name="custom_url_scheme">com.goldscalp.signals</string>
+</resources>
