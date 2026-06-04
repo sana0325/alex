@@ -47,6 +47,7 @@ export interface GoldSignal {
   riskReward: number;
   timestamp: number;
   timeframe: string;
+  symbol: string;
   filtersOk: boolean;
   filterReasons: string[];
   isContrarian: boolean;
@@ -55,6 +56,7 @@ export interface GoldSignal {
 export interface AppSettings {
   apiKey: string;           // TwelveData API key (free: 800/day)
   apiProvider: 'twelvedata' | 'manual';
+  symbol: string;           // e.g. 'XAU/USD', 'EUR/USD'
   timeframe: 'M5' | 'M15' | 'M30';
   longThreshold: number;    // default 15
   shortThreshold: number;   // default 15

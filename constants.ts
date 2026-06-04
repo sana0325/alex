@@ -1,7 +1,15 @@
 import { AppSettings } from './types';
 
-export const SYMBOL = 'XAU/USD';
-export const SYMBOL_DISPLAY = 'XAUUSD';
+export const SYMBOL_OPTIONS = [
+  { value: 'XAU/USD', display: 'XAUUSD', label: 'Gold',    icon: '🥇' },
+  { value: 'EUR/USD', display: 'EURUSD', label: 'EUR/USD', icon: '€'  },
+  { value: 'GBP/USD', display: 'GBPUSD', label: 'GBP/USD', icon: '£'  },
+  { value: 'USD/JPY', display: 'USDJPY', label: 'USD/JPY', icon: '¥'  },
+  { value: 'USD/CHF', display: 'USDCHF', label: 'USD/CHF', icon: '₣'  },
+  { value: 'AUD/USD', display: 'AUDUSD', label: 'AUD/USD', icon: 'A'  },
+  { value: 'USD/CAD', display: 'USDCAD', label: 'USD/CAD', icon: 'C'  },
+  { value: 'NZD/USD', display: 'NZDUSD', label: 'NZD/USD', icon: 'N'  },
+];
 
 export const TIMEFRAME_OPTIONS = [
   { value: 'M5',  label: '5 min',  api: '5min' },
@@ -12,6 +20,7 @@ export const TIMEFRAME_OPTIONS = [
 export const DEFAULT_SETTINGS: AppSettings = {
   apiKey: '',
   apiProvider: 'twelvedata',
+  symbol: 'XAU/USD',
   timeframe: 'M5',
   longThreshold: 15,
   shortThreshold: 15,

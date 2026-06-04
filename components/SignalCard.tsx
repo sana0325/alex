@@ -48,7 +48,7 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
 
       {/* Price */}
       <div className="mb-4">
-        <p className="text-xs text-gray-400 mb-0.5">XAUUSD</p>
+        <p className="text-xs text-gray-400 mb-0.5">{signal.symbol.replace('/', '')}</p>
         <p className="text-3xl font-mono font-bold text-yellow-400">
           {currentPrice > 0 ? currentPrice.toFixed(2) : signal.entryPrice.toFixed(2)}
         </p>

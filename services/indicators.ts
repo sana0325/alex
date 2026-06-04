@@ -501,7 +501,7 @@ export function analyzeGold(candles: Candle[], settings: AppSettings): GoldSigna
     direction, longVotes, shortVotes, neutralVotes, totalSignalIndicators: 26,
     score, confidence, votes, support,
     entryPrice: price, stopLoss: sl, takeProfit: tp, riskReward: rr,
-    timestamp: Date.now(), timeframe: settings.timeframe, filtersOk, filterReasons,
-    isContrarian
+    timestamp: Date.now(), timeframe: settings.timeframe, symbol: settings.symbol ?? 'XAU/USD',
+    filtersOk, filterReasons, isContrarian
   };
 }

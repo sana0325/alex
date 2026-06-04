@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { GoldSignal, AppSettings } from './types';
-import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_DISPLAY } from './constants';
+import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_OPTIONS } from './constants';
 import { analyzeGold } from './services/indicators';
 import { fetchGoldCandles, fetchCurrentPrice, getKeyStatus } from './services/goldApi';
 import { SignalCard } from './components/SignalCard';
@@ -108,13 +108,15 @@ export default function App() {
           <div className="flex items-center gap-2">
             <span className="text-yellow-400 text-xl">◈</span>
             <div>
-              <p className="text-xs text-gray-500 leading-none">{SYMBOL_DISPLAY}</p>
+              <p className="text-xs text-gray-500 leading-none">
+                {SYMBOL_OPTIONS.find(s => s.value === settings.symbol)?.display ?? settings.symbol}
+              </p>
               <p className={`text-lg font-black leading-tight ${dirColor}`}>
                 {signal
                   ? signal.direction === 'LONG' ? '▲ ЛОНГ'
                   : signal.direction === 'SHORT' ? '▼ ШОРТ'
                   : '— ОЧІКУВАННЯ'
-                  : 'Gold Scalp'}
+                  : 'Scalp Bot'}
               </p>
             </div>
           </div>
@@ -162,8 +164,33 @@ export default function App() {
         </div>
       </div>
 
+      {/* Symbol selector strip */}
+      <div className="sticky top-[57px] z-35 bg-gray-950/95 backdrop-blur border-b border-gray-800/60 overflow-x-auto">
+        <div className="flex gap-2 px-4 py-2 w-max min-w-full">
+          {SYMBOL_OPTIONS.map(sym => (
+            <button
+              key={sym.value}
+              onClick={() => {
+                const next = { ...settings, symbol: sym.value };
+                saveSettings(next);
+                setSettings(next);
+                setSignal(null);
+                startInterval(next);
+              }}
+              className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-bold transition-colors ${
+                settings.symbol === sym.value
+                  ? 'bg-yellow-500 text-black'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {sym.icon} {sym.display}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Tab nav */}
-      <div className="sticky top-[57px] z-30 bg-gray-950/95 backdrop-blur border-b border-gray-800/40">
+      <div className="sticky top-[94px] z-30 bg-gray-950/95 backdrop-blur border-b border-gray-800/40">
         <div className="flex max-w-lg mx-auto">
           {tabs.map(t => (
             <button

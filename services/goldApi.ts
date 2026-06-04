@@ -107,7 +107,8 @@ export function getKeyStatus(): { active: number; calls: number[]; total: number
 export async function fetchGoldCandles(settings: AppSettings): Promise<Candle[]> {
   const key = getActiveKey(settings.apiKey);
   const interval = TF_MAP[settings.timeframe] ?? '5min';
-  const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${interval}&outputsize=${CANDLES_NEEDED}&apikey=${key}&format=JSON&order=ASC`;
+  const sym = encodeURIComponent(settings.symbol ?? 'XAU/USD');
+  const url = `https://api.twelvedata.com/time_series?symbol=${sym}&interval=${interval}&outputsize=${CANDLES_NEEDED}&apikey=${key}&format=JSON&order=ASC`;
 
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) {
@@ -147,7 +148,8 @@ export async function fetchGoldCandles(settings: AppSettings): Promise<Candle[]>
 export async function fetchCurrentPrice(settings: AppSettings): Promise<number | null> {
   try {
     const key = getActiveKey(settings.apiKey);
-    const url = `https://api.twelvedata.com/price?symbol=XAU/USD&apikey=${key}`;
+    const sym = encodeURIComponent(settings.symbol ?? 'XAU/USD');
+    const url = `https://api.twelvedata.com/price?symbol=${sym}&apikey=${key}`;
     const res = await fetch(url);
     const data = await res.json();
     recordCall(settings.apiKey);

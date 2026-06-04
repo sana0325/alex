@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppSettings } from '../types';
-import { TIMEFRAME_OPTIONS } from '../constants';
+import { TIMEFRAME_OPTIONS, SYMBOL_OPTIONS } from '../constants';
 import { getKeyStatus } from '../services/goldApi';
 
 interface Props {
@@ -79,6 +79,24 @@ export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) =>
               <p className="text-xs text-gray-600">
                 Залишіть порожнім — використовуються вбудовані ключі автоматично
               </p>
+            </div>
+          </div>
+
+          {/* Symbol */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📊 Інструмент</p>
+            <div className="grid grid-cols-4 gap-2">
+              {SYMBOL_OPTIONS.map(sym => (
+                <button
+                  key={sym.value}
+                  onClick={() => setS(prev => ({ ...prev, symbol: sym.value }))}
+                  className={`py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    s.symbol === sym.value ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {sym.display}
+                </button>
+              ))}
             </div>
           </div>
 
