@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GoldSignal, AppSettings, Candle } from './types';
+import React, { useState, useCallback, useRef } from 'react';
+import { GoldSignal, AppSettings } from './types';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_DISPLAY } from './constants';
 import { analyzeGold } from './services/indicators';
-import { fetchGoldCandles, fetchCurrentPrice } from './services/goldApi';
+import { fetchGoldCandles, fetchCurrentPrice, getKeyStatus } from './services/goldApi';
 import { SignalCard } from './components/SignalCard';
 import { IndicatorVotes } from './components/IndicatorVotes';
 import { SupportPanel } from './components/SupportPanel';
@@ -38,23 +38,18 @@ export default function App() {
   const countRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const analyze = useCallback(async (s: AppSettings) => {
-    if (!s.apiKey) {
-      setStatus('error');
-      setErrorMsg('Введіть API ключ TwelveData в налаштуваннях');
-      return;
-    }
     setStatus('loading');
     setErrorMsg('');
     try {
-      const candles: Candle[] = await fetchGoldCandles(s);
+      const candles = await fetchGoldCandles(s);
       const result = analyzeGold(candles, s);
       setSignal(result);
       setCurrentPrice(result.entryPrice);
       setLastUpdate(new Date());
       setStatus('ok');
 
-      // Also fetch live price
-      fetchCurrentPrice(s.apiKey).then(p => { if (p) setCurrentPrice(p); });
+      // Fetch live tick price (doesn't block signal display)
+      fetchCurrentPrice(s).then(p => { if (p) setCurrentPrice(p); });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus('error');
@@ -96,6 +91,9 @@ export default function App() {
   const dirColor = signal?.direction === 'LONG' ? 'text-green-400'
     : signal?.direction === 'SHORT' ? 'text-red-400' : 'text-gray-500';
 
+  const keyStatus = getKeyStatus();
+  const keyUsedPct = Math.round((keyStatus.total / keyStatus.limit) * 100);
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'signal', label: 'Сигнал' },
     { id: 'indicators', label: 'Індикатори' },
@@ -136,6 +134,26 @@ export default function App() {
                 : '—'}
               </span>
             </div>
+            {/* Key usage indicator */}
+            <div
+              className="flex items-center gap-1 cursor-pointer"
+              onClick={() => setShowSettings(true)}
+              title={`Ключ ${keyStatus.active + 1}/8 · ${keyStatus.total} запитів сьогодні`}
+            >
+              <div className="flex gap-0.5">
+                {Array.from({ length: 8 }, (_, i) => (
+                  <div
+                    key={i}
+                    className={`w-1.5 h-3 rounded-sm ${
+                      i < keyStatus.active ? 'bg-gray-700'
+                      : i === keyStatus.active ? 'bg-yellow-400'
+                      : 'bg-gray-600'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-gray-600">{keyUsedPct}%</span>
+            </div>
             <button
               onClick={() => setShowSettings(true)}
               className="text-gray-400 text-xl px-1"
@@ -166,38 +184,16 @@ export default function App() {
       {/* Content */}
       <div className="max-w-lg mx-auto px-4 py-4 pb-8">
 
-        {/* Error banner */}
+        {/* Error banner — auto-retries on key rotation, show only persistent errors */}
         {status === 'error' && (
           <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-4 mb-4 text-sm text-red-300">
             <p className="font-semibold mb-1">⚠ {errorMsg}</p>
-            {!settings.apiKey && (
-              <button
-                onClick={() => setShowSettings(true)}
-                className="text-yellow-400 underline text-xs mt-1"
-              >
-                → Відкрити налаштування
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* No API key prompt */}
-        {!settings.apiKey && status !== 'loading' && (
-          <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-5 mb-4 text-center">
-            <p className="text-yellow-400 text-4xl mb-2">◈</p>
-            <p className="text-white font-bold mb-1">Gold Scalp Signals</p>
-            <p className="text-gray-400 text-sm mb-4">
-              32 індикатори · XAUUSD · Скальпінг 5-10хв
-            </p>
             <button
-              onClick={() => setShowSettings(true)}
-              className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl text-sm"
+              onClick={() => analyze(settings)}
+              className="text-yellow-400 underline text-xs mt-1"
             >
-              Ввести API ключ TwelveData
+              ↻ Спробувати знову
             </button>
-            <p className="text-gray-600 text-xs mt-3">
-              Безкоштовно на twelvedata.com
-            </p>
           </div>
         )}
 

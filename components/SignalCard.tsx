@@ -7,7 +7,7 @@ interface Props {
 }
 
 export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
-  const { direction, longVotes, shortVotes, confidence, filterReasons, filtersOk } = signal;
+  const { direction, longVotes, shortVotes, confidence, filterReasons, filtersOk, isContrarian } = signal;
 
   const bgColor = direction === 'LONG'
     ? 'bg-gradient-to-br from-green-900/60 to-green-800/30 border-green-500/50'
@@ -23,10 +23,21 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
 
   return (
     <div className={`rounded-2xl border p-5 ${bgColor} shadow-lg`}>
+      {/* Contrarian badge */}
+      {isContrarian && (
+        <div className="flex justify-center mb-3">
+          <span className="bg-purple-900/60 border border-purple-500/50 text-purple-300 text-xs font-bold px-3 py-1 rounded-full tracking-widest">
+            ⟳ КОНТР-РЕЖИМ — ТОРГУЄМО ПРОТИ
+          </span>
+        </div>
+      )}
+
       {/* Direction */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Торговий сигнал</p>
+          <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
+            {isContrarian ? 'Наш вхід (проти індикаторів)' : 'Торговий сигнал'}
+          </p>
           <p className={`text-4xl font-black ${dirColor}`}>{dirLabel}</p>
         </div>
         <div className="text-right">
@@ -46,8 +57,8 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
       {/* Vote bars */}
       <div className="mb-4">
         <div className="flex justify-between text-xs text-gray-400 mb-1">
-          <span>ЛОНГ: {longVotes}/26</span>
-          <span>ШОРТ: {shortVotes}/26</span>
+          <span>{isContrarian ? 'Індик. ЛОНГ' : 'ЛОНГ'}: {longVotes}/26</span>
+          <span>{isContrarian ? 'Індик. ШОРТ' : 'ШОРТ'}: {shortVotes}/26</span>
         </div>
         <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-gray-800">
           <div className="bg-green-500 rounded-l-full transition-all duration-700"

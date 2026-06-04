@@ -474,10 +474,16 @@ export function analyzeGold(candles: Candle[], settings: AppSettings): GoldSigna
   if (support.bbWidth < 0.03) filterReasons.push('Низька волатильність (BB занадто вузький)');
   const filtersOk = filterReasons.length === 0;
 
-  let direction: VoteDirection = 'NONE';
+  let rawDirection: VoteDirection = 'NONE';
   if (filtersOk) {
-    if (longVotes >= settings.longThreshold) direction = 'LONG';
-    else if (shortVotes >= settings.shortThreshold) direction = 'SHORT';
+    if (longVotes >= settings.longThreshold) rawDirection = 'LONG';
+    else if (shortVotes >= settings.shortThreshold) rawDirection = 'SHORT';
+  }
+
+  const isContrarian = settings.contrarian ?? false;
+  let direction: VoteDirection = rawDirection;
+  if (isContrarian && rawDirection !== 'NONE') {
+    direction = rawDirection === 'LONG' ? 'SHORT' : 'LONG';
   }
 
   const sl = direction === 'LONG' ? price - support.atr * settings.slMultiplier
@@ -495,6 +501,7 @@ export function analyzeGold(candles: Candle[], settings: AppSettings): GoldSigna
     direction, longVotes, shortVotes, neutralVotes, totalSignalIndicators: 26,
     score, confidence, votes, support,
     entryPrice: price, stopLoss: sl, takeProfit: tp, riskReward: rr,
-    timestamp: Date.now(), timeframe: settings.timeframe, filtersOk, filterReasons
+    timestamp: Date.now(), timeframe: settings.timeframe, filtersOk, filterReasons,
+    isContrarian
   };
 }

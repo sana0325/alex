@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AppSettings } from '../types';
 import { TIMEFRAME_OPTIONS } from '../constants';
+import { getKeyStatus } from '../services/goldApi';
 
 interface Props {
   settings: AppSettings;
@@ -10,6 +11,7 @@ interface Props {
 
 export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) => {
   const [s, setS] = useState<AppSettings>({ ...settings });
+  const keyStatus = getKeyStatus();
 
   const field = (label: string, key: keyof AppSettings, type: 'text' | 'number' = 'text', hint?: string) => (
     <div>
@@ -36,12 +38,47 @@ export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) =>
         </div>
 
         <div className="p-5 space-y-6">
-          {/* API */}
+          {/* Built-in keys status */}
           <div>
-            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📡 Джерело даних</p>
-            <div className="space-y-3">
-              {field('TwelveData API Key', 'apiKey', 'text',
-                'Безкоштовний ключ: twelvedata.com → Sign Up → Dashboard → API Keys (800 запитів/день)')}
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📡 Вбудовані API ключі</p>
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm text-gray-300 font-medium">8 ключів TwelveData</span>
+                <span className="text-xs text-green-400 font-bold">● Активний #{keyStatus.active + 1}</span>
+              </div>
+              {/* Key bars */}
+              <div className="flex gap-1 mb-2">
+                {keyStatus.calls.map((calls, i) => {
+                  const pct = Math.min(100, (calls / 790) * 100);
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
+                      <div className="w-full h-8 bg-gray-800 rounded relative overflow-hidden">
+                        <div
+                          className={`absolute bottom-0 left-0 right-0 transition-all ${
+                            i === keyStatus.active ? 'bg-yellow-500' : pct > 80 ? 'bg-red-600' : 'bg-green-700'
+                          }`}
+                          style={{ height: `${Math.max(4, pct)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-600">{i + 1}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                Сьогодні: {keyStatus.total} / {keyStatus.limit} запитів
+              </p>
+            </div>
+          </div>
+
+          {/* Optional custom key */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-2">🔑 Свій ключ (необов'язково)</p>
+            <div className="space-y-1">
+              {field('Власний TwelveData API Key (має пріоритет)', 'apiKey', 'text')}
+              <p className="text-xs text-gray-600">
+                Залишіть порожнім — використовуються вбудовані ключі автоматично
+              </p>
             </div>
           </div>
 
@@ -98,6 +135,26 @@ export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) =>
               {field('Мін. ADX', 'minAdx', 'number')}
               {field('Оновлення (сек.)', 'refreshSeconds', 'number')}
             </div>
+          </div>
+
+          {/* Contrarian mode */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">⟳ Режим торгівлі</p>
+            <button
+              onClick={() => setS(prev => ({ ...prev, contrarian: !prev.contrarian }))}
+              className={`w-full py-4 rounded-xl text-sm font-bold border-2 transition-colors ${
+                s.contrarian
+                  ? 'bg-purple-900/50 border-purple-500 text-purple-300'
+                  : 'bg-gray-800 border-gray-700 text-gray-400'
+              }`}
+            >
+              {s.contrarian ? '⟳ КОНТР-РЕЖИМ: ПРОТИ ІНДИКАТОРІВ' : '→ ЗВИЧАЙНИЙ: ЗА ІНДИКАТОРАМИ'}
+            </button>
+            <p className="text-xs text-gray-600 mt-2 text-center">
+              {s.contrarian
+                ? 'Індикатори кажуть ЛОНГ → ми у ШОРТІ, і навпаки'
+                : 'Торгуємо за напрямком більшості індикаторів'}
+            </p>
           </div>
 
           <button

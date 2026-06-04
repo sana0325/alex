@@ -49,6 +49,7 @@ export interface GoldSignal {
   timeframe: string;
   filtersOk: boolean;
   filterReasons: string[];
+  isContrarian: boolean;
 }
 
 export interface AppSettings {
@@ -64,6 +65,7 @@ export interface AppSettings {
   minAdx: number;           // 20
   notificationsEnabled: boolean;
   refreshSeconds: number;   // 30
+  contrarian: boolean;      // trade against indicators
 }
 
 export interface PriceBar {
