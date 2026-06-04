@@ -137,6 +137,26 @@ export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) =>
             </div>
           </div>
 
+          {/* Contrarian mode */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">⟳ Режим торгівлі</p>
+            <button
+              onClick={() => setS(prev => ({ ...prev, contrarian: !prev.contrarian }))}
+              className={`w-full py-4 rounded-xl text-sm font-bold border-2 transition-colors ${
+                s.contrarian
+                  ? 'bg-purple-900/50 border-purple-500 text-purple-300'
+                  : 'bg-gray-800 border-gray-700 text-gray-400'
+              }`}
+            >
+              {s.contrarian ? '⟳ КОНТР-РЕЖИМ: ПРОТИ ІНДИКАТОРІВ' : '→ ЗВИЧАЙНИЙ: ЗА ІНДИКАТОРАМИ'}
+            </button>
+            <p className="text-xs text-gray-600 mt-2 text-center">
+              {s.contrarian
+                ? 'Індикатори кажуть ЛОНГ → ми у ШОРТІ, і навпаки'
+                : 'Торгуємо за напрямком більшості індикаторів'}
+            </p>
+          </div>
+
           <button
             onClick={() => { onSave(s); onClose(); }}
             className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl text-base"
