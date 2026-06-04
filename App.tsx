@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { GoldSignal, AppSettings } from './types';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_DISPLAY } from './constants';
 import { analyzeGold } from './services/indicators';
