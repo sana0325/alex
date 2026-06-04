@@ -1,28 +1,37 @@
-export const DEFAULT_PAIRS = [
-  'BTCUSDT',
-  'ETHUSDT',
-  'SOLUSDT',
-  'BNBUSDT',
-  'XRPUSDT',
-  'ADAUSDT',
-  'DOGEUSDT'
+import { AppSettings } from './types';
+
+export const SYMBOL = 'XAU/USD';
+export const SYMBOL_DISPLAY = 'XAUUSD';
+
+export const TIMEFRAME_OPTIONS = [
+  { value: 'M5',  label: '5 min',  api: '5min' },
+  { value: 'M15', label: '15 min', api: '15min' },
+  { value: 'M30', label: '30 min', api: '30min' },
 ];
 
-export const TIMEFRAMES = {
-  SHORT: '15m',
-  MEDIUM: '1h', // Default trend timeframe
-  LONG: '4h'
+export const DEFAULT_SETTINGS: AppSettings = {
+  apiKey: '',
+  apiProvider: 'twelvedata',
+  timeframe: 'M5',
+  longThreshold: 15,
+  shortThreshold: 15,
+  slMultiplier: 1.5,
+  tpMultiplier: 2.5,
+  sessionStartUTC: 7,
+  sessionEndUTC: 20,
+  minAdx: 18,
+  notificationsEnabled: true,
+  refreshSeconds: 30,
 };
 
-// Binance Websocket Base
-export const BINANCE_WS_BASE = 'wss://stream.binance.com:9443/ws';
-export const BINANCE_API_BASE = 'https://api.binance.com/api/v3';
+export const SETTINGS_KEY = 'gold_scalp_settings';
 
-// Mock news if API not available
-export const MOCK_NEWS = [
-  { id: '1', title: 'Bitcoin Reclaims Key Level Amidst Spot ETF Inflows', source: 'CoinDesk', url: '#', published_at: new Date().toISOString(), sentiment: 'positive' },
-  { id: '2', title: 'Ethereum Foundation Update: Roadmap Adjustments', source: 'TheBlock', url: '#', published_at: new Date(Date.now() - 3600000).toISOString(), sentiment: 'neutral' },
-  { id: '3', title: 'Solana Activity Surges to New Highs', source: 'Decrypt', url: '#', published_at: new Date(Date.now() - 7200000).toISOString(), sentiment: 'positive' },
-  { id: '4', title: 'Regulatory Uncertainties Continue to Weigh on Alts', source: 'Reuters', url: '#', published_at: new Date(Date.now() - 10800000).toISOString(), sentiment: 'negative' },
-  { id: '5', title: 'Whale Movement Detected: 5000 BTC Transferred', source: 'WhaleAlert', url: '#', published_at: new Date(Date.now() - 14400000).toISOString(), sentiment: 'neutral' }
-] as const;
+export const CANDLES_NEEDED = 250;
+
+export const INDICATOR_GROUPS = {
+  trend: { label: 'Тренд', color: '#60A5FA' },
+  momentum: { label: 'Моментум', color: '#A78BFA' },
+  oscillator: { label: 'Осцилятор', color: '#F472B6' },
+  channel: { label: 'Канал/Обсяг', color: '#34D399' },
+  support: { label: 'Фільтри', color: '#9CA3AF' },
+};

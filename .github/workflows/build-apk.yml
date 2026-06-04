@@ -1,0 +1,83 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, claude/android-gold-scalp-bot-C6PB6 ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GoldScalpSignals-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "Gold Scalp Signals v${{ github.run_number }}"
+          body: |
+            ## Gold Scalp Signals — Android APK
+
+            **Завантажте та встановіть APK на телефон**
+
+            ### Встановлення:
+            1. Завантажте `GoldScalpSignals.apk`
+            2. Дозвольте "Встановлення з невідомих джерел" в налаштуваннях Android
+            3. Встановіть APK
+            4. Отримайте безкоштовний API ключ на **twelvedata.com**
+            5. Введіть ключ в налаштуваннях додатку
+
+            ### Функції:
+            - 32 індикатори (26 сигнальних + 6 фільтрів)
+            - XAUUSD сигнали ЛОНГ/ШОРТ
+            - Автооновлення кожні 30 сек
+            - Темна золота тема
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

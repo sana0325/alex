@@ -1,171 +1,110 @@
-import React, { useState, useEffect } from 'react';
-import { X, Save, Shield, AlertTriangle } from 'lucide-react';
-import { ExchangeConfig, ExchangeName } from '../types';
-import { saveExchangeConfig, loadExchangeConfig, clearExchangeConfig } from '../services/trade';
+import React, { useState } from 'react';
+import { AppSettings } from '../types';
+import { TIMEFRAME_OPTIONS } from '../constants';
 
-interface SettingsModalProps {
-  isOpen: boolean;
+interface Props {
+  settings: AppSettings;
+  onSave: (s: AppSettings) => void;
   onClose: () => void;
 }
 
-const EXCHANGES: ExchangeName[] = ['BINANCE', 'BYBIT', 'OKX'];
+export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) => {
+  const [s, setS] = useState<AppSettings>({ ...settings });
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<ExchangeName>('BINANCE');
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
-  const [passphrase, setPassphrase] = useState('');
-  const [isTestnet, setIsTestnet] = useState(false);
-  const [savedConfigs, setSavedConfigs] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (isOpen) {
-      loadSavedStatus();
-    }
-  }, [isOpen]);
-
-  const loadSavedStatus = async () => {
-    const current = await loadExchangeConfig();
-    const status: Record<string, boolean> = {};
-    EXCHANGES.forEach(ex => {
-      status[ex] = !!current[ex];
-    });
-    setSavedConfigs(status);
-    
-    // Clear inputs when switching
-    setApiKey('');
-    setApiSecret('');
-    setPassphrase('');
-  };
-
-  const handleSave = async () => {
-    if (!apiKey || !apiSecret) return;
-    
-    const config: ExchangeConfig = {
-      name: activeTab,
-      apiKey,
-      apiSecret,
-      passphrase: activeTab === 'OKX' ? passphrase : undefined,
-      isTestnet
-    };
-
-    await saveExchangeConfig(config);
-    await loadSavedStatus();
-    alert(`${activeTab} keys saved locally!`);
-  };
-
-  const handleDelete = async () => {
-    await clearExchangeConfig(activeTab);
-    await loadSavedStatus();
-  };
-
-  if (!isOpen) return null;
+  const field = (label: string, key: keyof AppSettings, type: 'text' | 'number' = 'text', hint?: string) => (
+    <div>
+      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      <input
+        type={type}
+        value={s[key] as string | number}
+        onChange={e => setS(prev => ({
+          ...prev,
+          [key]: type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value
+        }))}
+        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-yellow-500"
+      />
+      {hint && <p className="text-xs text-gray-600 mt-1">{hint}</p>}
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-[#111827] w-full max-w-md rounded-xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-700 flex justify-between items-center bg-gray-900">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <Shield className="text-blue-500" size={20} />
-            Execution Settings
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-2">
-            <X size={24} />
-          </button>
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-end">
+      <div className="w-full bg-gray-950 border-t border-gray-800 rounded-t-2xl max-h-[92vh] overflow-y-auto">
+        <div className="sticky top-0 bg-gray-950 flex items-center justify-between px-5 py-4 border-b border-gray-800">
+          <h2 className="text-lg font-bold text-yellow-400">⚙ Налаштування</h2>
+          <button onClick={onClose} className="text-gray-400 text-2xl w-8 h-8 flex items-center justify-center">✕</button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="bg-blue-900/20 border border-blue-800/50 p-3 rounded-lg flex gap-3">
-             <AlertTriangle className="text-blue-400 shrink-0" size={20} />
-             <p className="text-xs text-blue-200">
-               Keys are stored locally. For mobile/desktop native apps, this storage is isolated to the application sandbox.
-               <br/><br/>
-               Use <strong>Trade Only</strong> API permissions.
-             </p>
+        <div className="p-5 space-y-6">
+          {/* API */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">📡 Джерело даних</p>
+            <div className="space-y-3">
+              {field('TwelveData API Key', 'apiKey', 'text',
+                'Безкоштовний ключ: twelvedata.com → Sign Up → Dashboard → API Keys (800 запитів/день)')}
+            </div>
           </div>
 
-          {/* Exchange Tabs */}
-          <div className="flex gap-2 border-b border-gray-700 pb-2 overflow-x-auto">
-            {EXCHANGES.map(ex => (
-              <button
-                key={ex}
-                onClick={() => setActiveTab(ex)}
-                className={`px-3 py-1.5 rounded text-xs font-medium transition-all whitespace-nowrap ${
-                  activeTab === ex 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
-                {ex} {savedConfigs[ex] && '✓'}
-              </button>
-            ))}
+          {/* Timeframe */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">⏱ Таймфрейм</p>
+            <div className="flex gap-2">
+              {TIMEFRAME_OPTIONS.map(tf => (
+                <button
+                  key={tf.value}
+                  onClick={() => setS(prev => ({ ...prev, timeframe: tf.value as AppSettings['timeframe'] }))}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                    s.timeframe === tf.value ? 'bg-yellow-500 text-black' : 'bg-gray-800 text-gray-400'
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="space-y-4">
-             <div>
-               <label className="block text-xs font-medium text-gray-400 mb-1">API Key</label>
-               <input 
-                 type="password" 
-                 value={apiKey}
-                 onChange={e => setApiKey(e.target.value)}
-                 className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none transition-colors"
-                 placeholder="Enter Exchange API Key"
-               />
-             </div>
-
-             <div>
-               <label className="block text-xs font-medium text-gray-400 mb-1">API Secret</label>
-               <input 
-                 type="password" 
-                 value={apiSecret}
-                 onChange={e => setApiSecret(e.target.value)}
-                 className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none transition-colors"
-                 placeholder="Enter Exchange API Secret"
-               />
-             </div>
-
-             {activeTab === 'OKX' && (
-               <div>
-                 <label className="block text-xs font-medium text-gray-400 mb-1">Passphrase</label>
-                 <input 
-                   type="password" 
-                   value={passphrase}
-                   onChange={e => setPassphrase(e.target.value)}
-                   className="w-full bg-gray-950 border border-gray-700 rounded p-2 text-sm text-white focus:border-blue-500 outline-none transition-colors"
-                   placeholder="OKX Passphrase"
-                 />
-               </div>
-             )}
-
-             <div className="flex items-center gap-2">
-               <input 
-                 type="checkbox" 
-                 id="testnet" 
-                 checked={isTestnet}
-                 onChange={e => setIsTestnet(e.target.checked)}
-                 className="rounded border-gray-700 bg-gray-900 w-4 h-4"
-               />
-               <label htmlFor="testnet" className="text-sm text-gray-300">Use Testnet</label>
-             </div>
+          {/* Thresholds */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🎯 Поріг сигналу (з 26)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Лонг (мін. голосів)', 'longThreshold', 'number')}
+              {field('Шорт (мін. голосів)', 'shortThreshold', 'number')}
+            </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-700 bg-gray-900 flex justify-between">
-          {savedConfigs[activeTab] ? (
-             <button onClick={handleDelete} className="text-red-400 text-sm hover:underline">
-               Delete Config
-             </button>
-          ) : <div></div>}
-          
-          <button 
-            onClick={handleSave}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          {/* Risk */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">💰 Ризик-менеджмент</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Стоп = ATR ×', 'slMultiplier', 'number')}
+              {field('Тейк = ATR ×', 'tpMultiplier', 'number')}
+            </div>
+          </div>
+
+          {/* Session */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🕐 Сесія (UTC годин)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Початок', 'sessionStartUTC', 'number')}
+              {field('Кінець', 'sessionEndUTC', 'number')}
+            </div>
+            <p className="text-xs text-gray-600 mt-2">Лондон: 7–16 · Нью-Йорк: 12–20 · Рекомендовано: 7–20</p>
+          </div>
+
+          {/* Filters */}
+          <div>
+            <p className="text-xs font-bold text-yellow-500 uppercase tracking-widest mb-3">🔍 Фільтри</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Мін. ADX', 'minAdx', 'number')}
+              {field('Оновлення (сек.)', 'refreshSeconds', 'number')}
+            </div>
+          </div>
+
+          <button
+            onClick={() => { onSave(s); onClose(); }}
+            className="w-full bg-yellow-500 text-black font-bold py-4 rounded-xl text-base"
           >
-            <Save size={18} />
-            Save {activeTab}
+            ✓ Зберегти налаштування
           </button>
         </div>
       </div>

@@ -1,180 +1,250 @@
-import React, { useState, useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from './services/supabase';
-import { Layout } from './components/Layout';
-import { Dashboard } from './components/Dashboard';
-import { AnalysisPage } from './components/AnalysisPage';
-import { Activity, Zap, Hexagon, BarChart3, Lock, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { GoldSignal, AppSettings, Candle } from './types';
+import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_DISPLAY } from './constants';
+import { analyzeGold } from './services/indicators';
+import { fetchGoldCandles, fetchCurrentPrice } from './services/goldApi';
+import { SignalCard } from './components/SignalCard';
+import { IndicatorVotes } from './components/IndicatorVotes';
+import { SupportPanel } from './components/SupportPanel';
+import { SettingsModal } from './components/SettingsModal';
 
-function App() {
-  const [session, setSession] = useState<any>(null);
-  const [currentPage, setCurrentPage] = useState<'dashboard' | 'analysis'>('dashboard');
-  const [selectedPair, setSelectedPair] = useState<string>('BTCUSDT');
-  const [loading, setLoading] = useState(true);
+type Tab = 'signal' | 'indicators' | 'support';
 
-  useEffect(() => {
-    // 1. Check active session
-    if (isSupabaseConfigured()) {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setLoading(false);
-        });
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
 
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
-        return () => subscription.unsubscribe();
-    } else {
-        // Fallback for demo without Supabase keys
-        setLoading(false);
+function saveSettings(s: AppSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+export default function App() {
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [signal, setSignal] = useState<GoldSignal | null>(null);
+  const [currentPrice, setCurrentPrice] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [tab, setTab] = useState<Tab>('signal');
+  const [showSettings, setShowSettings] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState(0);
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const analyze = useCallback(async (s: AppSettings) => {
+    if (!s.apiKey) {
+      setStatus('error');
+      setErrorMsg('Введіть API ключ TwelveData в налаштуваннях');
+      return;
+    }
+    setStatus('loading');
+    setErrorMsg('');
+    try {
+      const candles: Candle[] = await fetchGoldCandles(s);
+      const result = analyzeGold(candles, s);
+      setSignal(result);
+      setCurrentPrice(result.entryPrice);
+      setLastUpdate(new Date());
+      setStatus('ok');
+
+      // Also fetch live price
+      fetchCurrentPrice(s.apiKey).then(p => { if (p) setCurrentPrice(p); });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setStatus('error');
+      setErrorMsg(msg);
     }
   }, []);
 
-  const handleLogin = async () => {
-    if(!isSupabaseConfigured()) {
-        // Simulating login for demo
-        setSession({ user: { id: 'demo-user', email: 'demo@example.com', user_metadata: { avatar_url: '' } } });
-        return;
-    }
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-    });
+  const startInterval = useCallback((s: AppSettings) => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (countRef.current) clearInterval(countRef.current);
+
+    analyze(s);
+    setCountdown(s.refreshSeconds);
+
+    intervalRef.current = setInterval(() => {
+      analyze(s);
+      setCountdown(s.refreshSeconds);
+    }, s.refreshSeconds * 1000);
+
+    countRef.current = setInterval(() => {
+      setCountdown(prev => Math.max(0, prev - 1));
+    }, 1000);
+  }, [analyze]);
+
+  useEffect(() => {
+    startInterval(settings);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (countRef.current) clearInterval(countRef.current);
+    };
+  }, []);
+
+  const handleSaveSettings = (s: AppSettings) => {
+    saveSettings(s);
+    setSettings(s);
+    startInterval(s);
   };
 
-  const handleLogout = async () => {
-    if(isSupabaseConfigured()) {
-        await supabase.auth.signOut();
-    }
-    setSession(null);
-  };
+  const dirColor = signal?.direction === 'LONG' ? 'text-green-400'
+    : signal?.direction === 'SHORT' ? 'text-red-400' : 'text-gray-500';
 
-  const navigateToAnalysis = (pair: string) => {
-    setSelectedPair(pair);
-    setCurrentPage('analysis');
-  };
-
-  if (loading) {
-    return <div className="min-h-screen bg-[#030712] flex items-center justify-center text-blue-500 animate-pulse tracking-widest font-mono text-xs">INITIALIZING SYSTEM...</div>;
-  }
-
-  if (!session) {
-    return (
-      <div className="relative min-h-screen bg-[#030712] overflow-hidden flex flex-col items-center justify-center text-white selection:bg-blue-500/30 font-sans">
-        
-        {/* --- Background Ambient Effects --- */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
-            {/* Deep Glow Gradient */}
-            <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-900/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-indigo-900/10 rounded-full blur-[120px]" />
-            
-            {/* Grid Overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(17,24,39,0.3)_1px,transparent_1px),linear-gradient(90deg,rgba(17,24,39,0.3)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_60%_at_50%_50%,#000_10%,transparent_100%)] opacity-20" />
-            
-            {/* Floating Particles/Candles (Simulated with div) */}
-            <div className="absolute top-1/4 left-1/4 w-1 h-12 bg-gradient-to-b from-transparent via-green-500/20 to-transparent opacity-30 animate-pulse" style={{ animationDuration: '3s' }} />
-            <div className="absolute top-2/3 right-1/3 w-1 h-16 bg-gradient-to-b from-transparent via-red-500/20 to-transparent opacity-30 animate-pulse" style={{ animationDuration: '4s' }} />
-            <div className="absolute top-1/2 right-10 w-1 h-8 bg-gradient-to-b from-transparent via-blue-500/20 to-transparent opacity-20 animate-pulse" style={{ animationDuration: '2.5s' }} />
-        </div>
-
-        {/* --- Hero Visual: The Market Brain --- */}
-        <div className="relative z-10 mb-12 group perspective-[1000px]">
-           {/* Outer Ring */}
-           <div className="absolute inset-0 border border-blue-500/10 rounded-full animate-[spin_10s_linear_infinite]" />
-           <div className="absolute -inset-4 border border-dashed border-gray-800 rounded-full animate-[spin_20s_linear_infinite_reverse] opacity-50" />
-           
-           {/* Central Core */}
-           <div className="relative w-32 h-32 md:w-40 md:h-40 bg-[#0b0f19] rounded-full border border-gray-800 flex items-center justify-center shadow-[0_0_50px_rgba(59,130,246,0.15)] overflow-hidden">
-              {/* Internal Grid Scan */}
-              <div className="absolute inset-0 bg-[linear-gradient(0deg,transparent_49%,rgba(59,130,246,0.2)_50%,transparent_51%)] bg-[size:100%_8px] animate-[translateY_2s_linear_infinite]" />
-              
-              {/* Icon */}
-              <Hexagon className="text-blue-500 relative z-10 drop-shadow-[0_0_10px_rgba(59,130,246,0.8)]" size={48} strokeWidth={1.5} />
-              
-              {/* Inner Pulse */}
-              <div className="absolute inset-0 bg-blue-500/5 rounded-full animate-ping" style={{ animationDuration: '3s' }} />
-           </div>
-
-           {/* Floating Data Nodes */}
-           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-6 flex gap-1">
-              <div className="w-1 h-1 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-              <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-              <div className="w-1 h-1 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-           </div>
-        </div>
-
-        {/* --- Typography --- */}
-        <div className="relative z-10 text-center space-y-6 max-w-2xl px-6">
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-b from-white via-gray-200 to-gray-500 drop-shadow-sm">
-            Read the Market.<br/>
-            <span className="text-gray-600">Not the Noise.</span>
-          </h1>
-          
-          <div className="flex items-center justify-center gap-4 text-sm md:text-base text-gray-400 font-medium tracking-wide uppercase opacity-80">
-            <span className="flex items-center gap-1"><Activity size={14} className="text-blue-500" /> Adaptive Analysis</span>
-            <span className="w-1 h-1 bg-gray-700 rounded-full" />
-            <span className="flex items-center gap-1"><BarChart3 size={14} className="text-blue-500" /> Order Flow</span>
-            <span className="w-1 h-1 bg-gray-700 rounded-full" />
-            <span className="flex items-center gap-1"><Lock size={14} className="text-blue-500" /> Control</span>
-          </div>
-        </div>
-
-        {/* --- Action Area --- */}
-        <div className="relative z-10 mt-16 w-full max-w-sm px-6">
-          <button
-            onClick={handleLogin}
-            className="group relative w-full flex items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-500/50 backdrop-blur-md text-gray-200 py-4 px-6 rounded-xl transition-all duration-300 shadow-2xl hover:shadow-[0_0_20px_rgba(59,130,246,0.15)] overflow-hidden"
-          >
-            {/* Button Highlight Effect */}
-            <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 group-hover:w-1.5 transition-all" />
-            
-            <div className="flex items-center gap-3">
-               <div className="bg-white rounded-full p-1.5">
-                 <svg className="w-4 h-4" viewBox="0 0 24 24"><path fill="#000" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" /><path fill="#000" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" /><path fill="#000" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" /><path fill="#000" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" /></svg>
-               </div>
-               <div className="text-left">
-                  <span className="block text-xs text-gray-500 font-semibold uppercase tracking-wider">Access Terminal</span>
-                  <span className="block font-medium text-white">Sign in with Google</span>
-               </div>
-            </div>
-            <ChevronRight className="text-gray-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all" size={20} />
-          </button>
-          
-          <div className="mt-6 text-center">
-            <p className="text-[10px] text-gray-600 uppercase tracking-widest">
-                {isSupabaseConfigured() ? 'Secure Connection Ready' : 'Demo Mode Active'}
-            </p>
-          </div>
-        </div>
-
-        {/* --- Footer Status Line --- */}
-        <div className="absolute bottom-6 w-full flex justify-between px-8 text-[10px] text-gray-700 font-mono">
-            <span>SYS: ONLINE</span>
-            <span>V 2.4.0-PRO</span>
-        </div>
-
-      </div>
-    );
-  }
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'signal', label: 'Сигнал' },
+    { id: 'indicators', label: 'Індикатори' },
+    { id: 'support', label: 'Фільтри' },
+  ];
 
   return (
-    <Layout 
-      user={session.user} 
-      onLogout={handleLogout}
-      currentPage={currentPage}
-      onNavigate={setCurrentPage}
-    >
-      {currentPage === 'dashboard' ? (
-        <Dashboard onSelectPair={navigateToAnalysis} />
-      ) : (
-        <AnalysisPage 
-          symbol={selectedPair} 
-          user={session.user} 
-          onBack={() => setCurrentPage('dashboard')} 
+    <div className="min-h-screen bg-gray-950 text-white font-sans">
+      {/* Top bar */}
+      <div className="sticky top-0 z-40 bg-gray-950/95 backdrop-blur border-b border-gray-800/60 px-4 py-3">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-xl">◈</span>
+            <div>
+              <p className="text-xs text-gray-500 leading-none">{SYMBOL_DISPLAY}</p>
+              <p className={`text-lg font-black leading-tight ${dirColor}`}>
+                {signal
+                  ? signal.direction === 'LONG' ? '▲ ЛОНГ'
+                  : signal.direction === 'SHORT' ? '▼ ШОРТ'
+                  : '— ОЧІКУВАННЯ'
+                  : 'Gold Scalp'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Status indicator */}
+            <div className="flex items-center gap-1.5">
+              <div className={`w-2 h-2 rounded-full ${
+                status === 'loading' ? 'bg-yellow-400 animate-pulse'
+                : status === 'ok' ? 'bg-green-400'
+                : status === 'error' ? 'bg-red-400'
+                : 'bg-gray-600'
+              }`} />
+              <span className="text-xs text-gray-500">
+                {status === 'loading' ? 'Оновлення…'
+                : status === 'ok' ? `${countdown}с`
+                : status === 'error' ? 'Помилка'
+                : '—'}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="text-gray-400 text-xl px-1"
+            >⚙</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Tab nav */}
+      <div className="sticky top-[57px] z-30 bg-gray-950/95 backdrop-blur border-b border-gray-800/40">
+        <div className="flex max-w-lg mx-auto">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`flex-1 py-2.5 text-sm font-semibold transition-colors border-b-2 ${
+                tab === t.id
+                  ? 'border-yellow-400 text-yellow-400'
+                  : 'border-transparent text-gray-500'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="max-w-lg mx-auto px-4 py-4 pb-8">
+
+        {/* Error banner */}
+        {status === 'error' && (
+          <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-4 mb-4 text-sm text-red-300">
+            <p className="font-semibold mb-1">⚠ {errorMsg}</p>
+            {!settings.apiKey && (
+              <button
+                onClick={() => setShowSettings(true)}
+                className="text-yellow-400 underline text-xs mt-1"
+              >
+                → Відкрити налаштування
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* No API key prompt */}
+        {!settings.apiKey && status !== 'loading' && (
+          <div className="bg-yellow-900/20 border border-yellow-700/40 rounded-xl p-5 mb-4 text-center">
+            <p className="text-yellow-400 text-4xl mb-2">◈</p>
+            <p className="text-white font-bold mb-1">Gold Scalp Signals</p>
+            <p className="text-gray-400 text-sm mb-4">
+              32 індикатори · XAUUSD · Скальпінг 5-10хв
+            </p>
+            <button
+              onClick={() => setShowSettings(true)}
+              className="bg-yellow-500 text-black font-bold px-6 py-3 rounded-xl text-sm"
+            >
+              Ввести API ключ TwelveData
+            </button>
+            <p className="text-gray-600 text-xs mt-3">
+              Безкоштовно на twelvedata.com
+            </p>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {status === 'loading' && !signal && (
+          <div className="animate-pulse space-y-3">
+            <div className="h-48 bg-gray-800 rounded-2xl" />
+            <div className="h-16 bg-gray-800 rounded-xl" />
+            <div className="h-16 bg-gray-800 rounded-xl" />
+          </div>
+        )}
+
+        {/* Main content */}
+        {signal && (
+          <>
+            {tab === 'signal' && (
+              <div className="space-y-4">
+                <SignalCard signal={signal} currentPrice={currentPrice} />
+                {/* Manual refresh */}
+                <button
+                  onClick={() => analyze(settings)}
+                  disabled={status === 'loading'}
+                  className="w-full bg-gray-900 border border-gray-800 hover:border-yellow-700/50 text-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-50"
+                >
+                  {status === 'loading' ? 'Оновлення…' : '↻ Оновити зараз'}
+                </button>
+                {lastUpdate && (
+                  <p className="text-xs text-gray-600 text-center">
+                    Останнє оновлення: {lastUpdate.toLocaleTimeString('uk-UA')}
+                  </p>
+                )}
+              </div>
+            )}
+            {tab === 'indicators' && <IndicatorVotes votes={signal.votes} />}
+            {tab === 'support' && <SupportPanel support={signal.support} />}
+          </>
+        )}
+      </div>
+
+      {/* Settings modal */}
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          onSave={handleSaveSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
-    </Layout>
+    </div>
   );
 }
-
-export default App;
