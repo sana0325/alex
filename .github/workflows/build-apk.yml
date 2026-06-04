@@ -40,43 +40,72 @@ jobs:
       - name: Make Gradlew executable
         run: chmod +x android/gradlew
 
+      # Use a fixed debug keystore so every build has the same signature.
+      # This prevents "package conflict" errors when updating the app.
+      - name: Setup fixed debug keystore
+        run: |
+          mkdir -p ~/.android
+          # Generate a stable keystore if it doesn't exist in cache
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkey -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Gold Scalp Signals, OU=Android, O=GoldScalp, L=UA, S=UA, C=UA"
+          fi
+
+      - name: Cache debug keystore
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: Build Debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
-      - name: Upload APK
+      - name: Rename APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             GoldScalpSignals.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GoldScalpSignals-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          name: GoldScalpSignals-apk
+          path: GoldScalpSignals.apk
+          retention-days: 90
 
-      - name: Create Release
+      - name: Create Release (on main branch)
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
           name: "Gold Scalp Signals v${{ github.run_number }}"
           body: |
-            ## Gold Scalp Signals — Android APK
+            ## 📲 Gold Scalp Signals — Android APK
 
-            **Завантажте та встановіть APK на телефон**
+            ### Встановлення (перший раз):
+            1. Завантажте **GoldScalpSignals.apk** нижче
+            2. На телефоні: Налаштування → Безпека → **Невідомі джерела** → Увімкнути
+            3. Відкрийте завантажений APK → Встановити
+            4. Додаток запускається відразу (ключі вбудовані)
 
-            ### Встановлення:
-            1. Завантажте `GoldScalpSignals.apk`
-            2. Дозвольте "Встановлення з невідомих джерел" в налаштуваннях Android
-            3. Встановіть APK
-            4. Отримайте безкоштовний API ключ на **twelvedata.com**
-            5. Введіть ключ в налаштуваннях додатку
+            ### Оновлення (якщо вже встановлено):
+            - Просто встановіть новий APK поверх старого — підпис постійний
 
             ### Функції:
             - 32 індикатори (26 сигнальних + 6 фільтрів)
-            - XAUUSD сигнали ЛОНГ/ШОРТ
+            - XAUUSD · 5/15/30 хв таймфрейм
             - Автооновлення кожні 30 сек
-            - Темна золота тема
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+            - 8 вбудованих API ключів з авторотацією
+          files: GoldScalpSignals.apk
           draft: false
           prerelease: false
         env:
