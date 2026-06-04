@@ -6,8 +6,19 @@ interface Props {
   currentPrice: number;
 }
 
+function priceDec(symbol: string): number {
+  if (symbol.includes('XAU') || symbol.includes('XAG')) return 2;
+  if (symbol.includes('JPY')) return 3;
+  return 5;
+}
+
+function fmt(value: number, symbol: string): string {
+  return value.toFixed(priceDec(symbol));
+}
+
 export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
-  const { direction, longVotes, shortVotes, confidence, filterReasons, filtersOk, isContrarian } = signal;
+  const { direction, longVotes, shortVotes, confidence, filterReasons, filtersOk, isContrarian, symbol } = signal;
+  const dec = priceDec(symbol);
 
   const bgColor = direction === 'LONG'
     ? 'bg-gradient-to-br from-green-900/60 to-green-800/30 border-green-500/50'
@@ -48,9 +59,9 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
 
       {/* Price */}
       <div className="mb-4">
-        <p className="text-xs text-gray-400 mb-0.5">{signal.symbol.replace('/', '')}</p>
+        <p className="text-xs text-gray-400 mb-0.5">{symbol.replace('/', '')}</p>
         <p className="text-3xl font-mono font-bold text-yellow-400">
-          {currentPrice > 0 ? currentPrice.toFixed(2) : signal.entryPrice.toFixed(2)}
+          {fmt(currentPrice > 0 ? currentPrice : signal.entryPrice, symbol)}
         </p>
       </div>
 
@@ -78,23 +89,23 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div className="bg-black/30 rounded-lg p-2 text-center">
             <p className="text-xs text-gray-500">Вхід</p>
-            <p className="text-sm font-mono text-yellow-300">{signal.entryPrice.toFixed(2)}</p>
+            <p className="text-sm font-mono text-yellow-300">{fmt(signal.entryPrice, symbol)}</p>
           </div>
           <div className="bg-black/30 rounded-lg p-2 text-center">
             <p className="text-xs text-red-400">Стоп</p>
-            <p className="text-sm font-mono text-red-300">{signal.stopLoss.toFixed(2)}</p>
+            <p className="text-sm font-mono text-red-300">{fmt(signal.stopLoss, symbol)}</p>
           </div>
           <div className="bg-black/30 rounded-lg p-2 text-center">
             <p className="text-xs text-green-400">Тейк</p>
-            <p className="text-sm font-mono text-green-300">{signal.takeProfit.toFixed(2)}</p>
+            <p className="text-sm font-mono text-green-300">{fmt(signal.takeProfit, symbol)}</p>
           </div>
         </div>
       )}
 
-      {/* RR + filters */}
+      {/* RR + ATR */}
       {direction !== 'NONE' && (
         <p className="text-xs text-gray-400 text-center mb-3">
-          RR 1:{signal.riskReward.toFixed(2)} · ATR {signal.support.atr.toFixed(2)}
+          RR 1:{signal.riskReward.toFixed(2)} · ATR {signal.support.atr.toFixed(dec)}
         </p>
       )}
 
