@@ -175,13 +175,13 @@ export const SettingsModal: React.FC<Props> = ({ settings, onSave, onClose }) =>
           </Section>
 
           {/* Session */}
-          <Section icon="🕐" title="SESSION (UTC HOURS)">
+          <Section icon="🕐" title="SESSION (LOCAL TIME)">
             <div className="grid grid-cols-2 gap-3">
-              {field('Start', 'sessionStartUTC', 'number')}
-              {field('End', 'sessionEndUTC', 'number')}
+              {field('Start (local hour)', 'sessionStartUTC', 'number')}
+              {field('End (local hour)', 'sessionEndUTC', 'number')}
             </div>
             <p className="font-tech text-xs mt-2" style={{ color: '#ffffff20' }}>
-              London 7–16 · New York 12–20 · Recommended 7–20
+              Uses your device local time · Recommended 7–22
             </p>
           </Section>
 

@@ -432,14 +432,15 @@ function calcSupport(c: Candle[], settings: AppSettings): SupportData {
   const avgVol = c.slice(-20).map(x=>x.volume).reduce((a,b)=>a+b)/20;
   const volRatio = avgVol>0 ? c[c.length-1].volume/avgVol : 1;
 
-  // Session check (UTC)
-  const hourUTC = new Date().getUTCHours();
-  const inSession = hourUTC>=settings.sessionStartUTC && hourUTC<settings.sessionEndUTC;
+  // Session check (local device time)
+  const hourLocal = new Date().getHours();
+  const inSession = hourLocal >= settings.sessionStartUTC && hourLocal < settings.sessionEndUTC;
   let sessionName = 'Закрита';
   if (inSession) {
-    if (hourUTC>=7 && hourUTC<12) sessionName = 'Лондон';
-    else if (hourUTC>=12 && hourUTC<17) sessionName = 'Лондон+NY';
-    else if (hourUTC>=17 && hourUTC<20) sessionName = 'NY';
+    if (hourLocal >= 9 && hourLocal < 13) sessionName = 'Ранок';
+    else if (hourLocal >= 13 && hourLocal < 17) sessionName = 'День';
+    else if (hourLocal >= 17 && hourLocal < 21) sessionName = 'Вечір';
+    else sessionName = 'Відкрита';
   }
 
   return { atr: atrVal, bbWidth, adxStrength, pivotPP: pp, pivotR1: r1, pivotS1: s1,
@@ -469,7 +470,7 @@ export function analyzeGold(candles: Candle[], settings: AppSettings): GoldSigna
 
   // Filter checks
   const filterReasons: string[] = [];
-  if (!support.inSession) filterReasons.push(`Сесія закрита (UTC ${new Date().getUTCHours()}h)`);
+  if (!support.inSession) filterReasons.push(`Сесія закрита (місцевий час ${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2,'0')})`);
   if (support.adxStrength < settings.minAdx) filterReasons.push(`ADX слабкий (${support.adxStrength.toFixed(1)} < ${settings.minAdx})`);
   if (support.bbWidth < 0.03) filterReasons.push('Низька волатильність (BB занадто вузький)');
   const filtersOk = filterReasons.length === 0;
