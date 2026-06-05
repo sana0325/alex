@@ -3,12 +3,14 @@ import { GoldSignal, AppSettings } from './types';
 import { DEFAULT_SETTINGS, SETTINGS_KEY, SYMBOL_OPTIONS } from './constants';
 import { analyzeGold } from './services/indicators';
 import { fetchGoldCandles, fetchCurrentPrice, getKeyStatus } from './services/goldApi';
+import { fetchCalendar, getUpcomingEvents, getNewsBlackout, EconEvent } from './services/calendar';
 import { SignalCard } from './components/SignalCard';
 import { IndicatorVotes } from './components/IndicatorVotes';
 import { SupportPanel } from './components/SupportPanel';
+import { CalendarTab } from './components/CalendarTab';
 import { SettingsModal } from './components/SettingsModal';
 
-type Tab = 'signal' | 'indicators' | 'support';
+type Tab = 'signal' | 'indicators' | 'support' | 'calendar';
 
 function loadSettings(): AppSettings {
   try {
@@ -30,6 +32,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState(0);
+  const [calEvents, setCalEvents]   = useState<EconEvent[]>([]);
+  const [calLoading, setCalLoading] = useState(false);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countRef    = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -68,6 +72,19 @@ export default function App() {
     };
   }, []);
 
+  // Calendar: fetch on mount then every 30 min
+  useEffect(() => {
+    const load = async () => {
+      setCalLoading(true);
+      const ev = await fetchCalendar();
+      setCalEvents(ev);
+      setCalLoading(false);
+    };
+    load();
+    const t = setInterval(load, 30 * 60 * 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const handleSaveSettings = (s: AppSettings) => { saveSettings(s); setSettings(s); startInterval(s); };
 
   const dir = signal?.direction;
@@ -77,10 +94,15 @@ export default function App() {
   const keyUsedPct = Math.round((keyStatus.total / keyStatus.limit) * 100);
   const activeSym  = SYMBOL_OPTIONS.find(s => s.value === settings.symbol);
 
+  const blackout    = getNewsBlackout(calEvents, settings.symbol);
+  const upcoming    = getUpcomingEvents(calEvents, settings.symbol, 1); // next 1 hour
+  const nextEvent   = upcoming[0] ?? null;
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'signal',     label: '◉ Сигнал' },
     { id: 'indicators', label: '≡ Індикатори' },
     { id: 'support',    label: '⬡ Фільтри' },
+    { id: 'calendar',   label: `⚑ Новини${blackout ? ' ⚠' : ''}` },
   ];
 
   return (
@@ -234,7 +256,8 @@ export default function App() {
           <>
             {tab === 'signal' && (
               <div className="space-y-4">
-                <SignalCard signal={signal} currentPrice={currentPrice} />
+                <SignalCard signal={signal} currentPrice={currentPrice}
+                           blackout={blackout} nextEvent={nextEvent} />
 
                 <button
                   onClick={() => analyze(settings)}
@@ -258,6 +281,7 @@ export default function App() {
             )}
             {tab === 'indicators' && <IndicatorVotes votes={signal.votes} />}
             {tab === 'support'    && <SupportPanel support={signal.support} symbol={signal.symbol} />}
+            {tab === 'calendar'   && <CalendarTab events={calEvents} symbol={settings.symbol} loading={calLoading} />}
           </>
         )}
       </div>

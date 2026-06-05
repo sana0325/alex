@@ -1,9 +1,12 @@
 import React from 'react';
 import { GoldSignal } from '../types';
+import { EconEvent, relativeTime } from '../services/calendar';
 
 interface Props {
   signal: GoldSignal;
   currentPrice: number;
+  blackout?: EconEvent | null;
+  nextEvent?: EconEvent | null;
 }
 
 function priceDec(symbol: string): number {
@@ -13,7 +16,7 @@ function priceDec(symbol: string): number {
 }
 function fmt(v: number, sym: string) { return v.toFixed(priceDec(sym)); }
 
-export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
+export const SignalCard: React.FC<Props> = ({ signal, currentPrice, blackout, nextEvent }) => {
   const { direction, longVotes, shortVotes, confidence, filtersOk, filterReasons, isContrarian, symbol } = signal;
   const dec = priceDec(symbol);
 
@@ -69,6 +72,39 @@ export const SignalCard: React.FC<Props> = ({ signal, currentPrice }) => {
       {/* Scan line */}
       <div className="absolute left-0 right-0 h-px pointer-events-none animate-scan z-0"
            style={{ background: `linear-gradient(90deg, transparent, ${accent}40, transparent)` }} />
+
+      {/* News blackout banner */}
+      {blackout && (
+        <div className="relative z-10 mx-0 mb-0 px-5 pt-4">
+          <div className="rounded-xl p-3 text-center"
+               style={{ background: 'rgba(255,45,85,.2)', border: '2px solid #FF2D55', boxShadow: '0 0 20px rgba(255,45,85,.4)' }}>
+            <p className="font-orbitron text-xs font-black animate-blink" style={{ color: '#FF2D55' }}>
+              ⛔ СТОП — ВИХОДУ НЕМ
+            </p>
+            <p className="font-tech text-xs mt-1" style={{ color: '#FF2D5590' }}>
+              {blackout.title} · {blackout.country} · {relativeTime(blackout.timestamp)}
+            </p>
+            <p className="font-tech text-xs mt-0.5" style={{ color: '#FF2D5560' }}>
+              Чекайте 15 хв після виходу новини
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Warning: high-impact approaching */}
+      {!blackout && nextEvent && nextEvent.timestamp - Date.now() < 30 * 60_000 && (
+        <div className="relative z-10 px-5 pt-4">
+          <div className="rounded-xl p-2.5 flex items-center justify-between"
+               style={{ background: 'rgba(255,184,0,.1)', border: '1px solid rgba(255,184,0,.35)' }}>
+            <p className="font-tech text-xs" style={{ color: '#FFB800' }}>
+              ⚠ {nextEvent.title} · {nextEvent.country}
+            </p>
+            <p className="font-orbitron text-xs font-bold" style={{ color: '#FFB800' }}>
+              {relativeTime(nextEvent.timestamp)}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Contrarian badge */}
       {isContrarian && (
