@@ -487,11 +487,28 @@ export function analyzeGold(candles: Candle[], settings: AppSettings): GoldSigna
     direction = rawDirection === 'LONG' ? 'SHORT' : 'LONG';
   }
 
-  const sl = direction === 'LONG' ? price - support.atr * settings.slMultiplier
-    : direction === 'SHORT' ? price + support.atr * settings.slMultiplier : 0;
-  const tp = direction === 'LONG' ? price + support.atr * settings.tpMultiplier
-    : direction === 'SHORT' ? price - support.atr * settings.tpMultiplier : 0;
-  const risk = Math.abs(price - sl);
+  // Structural SL: place behind recent swing high/low (last 10 candles)
+  // This avoids "stop hunting" where price briefly pierces ATR-based SL then reverses.
+  const swing = candles.slice(-10);
+  const swingLow  = Math.min(...swing.map(c => c.low));
+  const swingHigh = Math.max(...swing.map(c => c.high));
+  const buf = support.atr * 0.25; // small buffer beyond the swing level
+
+  let sl = 0;
+  if (direction === 'LONG') {
+    const structuralSL = swingLow - buf;
+    const atrSL        = price - support.atr * settings.slMultiplier;
+    sl = Math.min(structuralSL, atrSL); // take the wider (lower) stop
+  } else if (direction === 'SHORT') {
+    const structuralSL = swingHigh + buf;
+    const atrSL        = price + support.atr * settings.slMultiplier;
+    sl = Math.max(structuralSL, atrSL); // take the wider (higher) stop
+  }
+
+  // TP maintains user's desired RR from the actual risk distance
+  const risk = direction !== 'NONE' ? Math.abs(price - sl) : 0;
+  const tp = direction === 'LONG'  ? price + risk * settings.tpMultiplier
+           : direction === 'SHORT' ? price - risk * settings.tpMultiplier : 0;
   const reward = Math.abs(tp - price);
   const rr = risk > 0 ? reward / risk : 0;
 
