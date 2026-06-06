@@ -2,6 +2,8 @@ import { AppSettings } from './types';
 
 export const SYMBOL_OPTIONS = [
   { value: 'XAU/USD', display: 'XAUUSD', label: 'Gold',    icon: '🥇' },
+  { value: 'BTC/USD', display: 'BTCUSD', label: 'Bitcoin', icon: '₿'  },
+  { value: 'ETH/USD', display: 'ETHUSD', label: 'Ethereum',icon: 'Ξ'  },
   { value: 'EUR/USD', display: 'EURUSD', label: 'EUR/USD', icon: '€'  },
   { value: 'GBP/USD', display: 'GBPUSD', label: 'GBP/USD', icon: '£'  },
   { value: 'USD/JPY', display: 'USDJPY', label: 'USD/JPY', icon: '¥'  },

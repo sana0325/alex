@@ -4,7 +4,8 @@ import { SupportData } from '../types';
 interface Props { support: SupportData; symbol?: string; }
 
 function priceDec(symbol = '') {
-  if (symbol.includes('XAU') || symbol.includes('XAG')) return 2;
+  if (symbol.includes('BTC') || symbol.includes('XAU') || symbol.includes('XAG')) return 2;
+  if (symbol.includes('ETH')) return 2;
   if (symbol.includes('JPY')) return 3;
   return 5;
 }

@@ -51,8 +51,9 @@ export async function fetchCalendar(): Promise<EconEvent[]> {
 }
 
 export function symbolCurrencies(symbol: string): string[] {
+  const CRYPTO = ['BTC', 'ETH', 'XRP', 'LTC', 'XAU', 'XAG'];
   return symbol.split('/').map(p =>
-    p === 'XAU' || p === 'XAG' ? 'USD' : p
+    CRYPTO.includes(p) ? 'USD' : p
   );
 }
 
