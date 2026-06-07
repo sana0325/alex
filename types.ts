@@ -16,7 +16,7 @@ export interface IndicatorVote {
   direction: VoteDirection;
   value: number;
   description: string;
-  isSignal: boolean; // true = one of 26 signal indicators
+  isSignal: boolean;
 }
 
 export interface SupportData {
@@ -36,9 +36,9 @@ export interface GoldSignal {
   longVotes: number;
   shortVotes: number;
   neutralVotes: number;
-  totalSignalIndicators: number;    // always 26
-  score: number;                    // longVotes - shortVotes
-  confidence: number;               // 0–100 %
+  totalSignalIndicators: number;
+  score: number;
+  confidence: number;
   votes: IndicatorVote[];
   support: SupportData;
   entryPrice: number;
@@ -53,22 +53,58 @@ export interface GoldSignal {
 }
 
 export interface AppSettings {
-  apiKey: string;           // TwelveData API key (free: 800/day)
+  apiKey: string;
   apiProvider: 'twelvedata' | 'manual';
   timeframe: 'M5' | 'M15' | 'M30';
-  longThreshold: number;    // default 15
-  shortThreshold: number;   // default 15
-  slMultiplier: number;     // ATR × this
-  tpMultiplier: number;     // ATR × this
-  sessionStartUTC: number;  // 7
-  sessionEndUTC: number;    // 20
-  minAdx: number;           // 20
+  longThreshold: number;
+  shortThreshold: number;
+  slMultiplier: number;
+  tpMultiplier: number;
+  sessionStartUTC: number;
+  sessionEndUTC: number;
+  minAdx: number;
   notificationsEnabled: boolean;
-  refreshSeconds: number;   // 30
-  contrarian: boolean;      // trade against indicators
+  refreshSeconds: number;
+  contrarian: boolean;
 }
 
 export interface PriceBar {
   time: number;
   price: number;
+}
+
+// ─── Freelance Hub types ────────────────────────────────────────────────────
+
+export type PlatformCategory = 'dev' | 'design' | 'writing' | 'microtask' | 'content' | 'data' | 'general';
+export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Currency = 'USD' | 'UAH' | 'EUR';
+
+export interface FreelancePlatform {
+  id: string;
+  name: string;
+  category: PlatformCategory;
+  description: string;
+  earning: string;
+  difficulty: Difficulty;
+  pros: string[];
+  icon: string;
+  color: string;
+}
+
+export interface EarningEntry {
+  id: string;
+  platform: string;
+  amount: number;
+  currency: Currency;
+  date: string;
+  task: string;
+}
+
+export interface FreelanceProfile {
+  name: string;
+  title: string;
+  bio: string;
+  skills: string[];
+  hourlyRate: number;
+  currency: Currency;
 }
