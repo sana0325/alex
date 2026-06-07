@@ -1,4 +1,4 @@
-package com.goldscalp.signals;
+package com.freelancehub.app;
 
 import com.getcapacitor.BridgeActivity;
 
