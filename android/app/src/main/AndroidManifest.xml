@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- TODO: замінити на реальний AdMob App ID з admob.google.com -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -23,6 +24,11 @@
             </intent-filter>
 
         </activity>
+
+        <!-- AdMob App ID (тест). Замінити на реальний після реєстрації -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713"/>
 
         <provider
             android:name="androidx.core.content.FileProvider"

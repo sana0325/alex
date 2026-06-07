@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { FreelanceDashboard } from './components/FreelanceDashboard';
 import { PlatformsList } from './components/PlatformsList';
 import { EarningsTracker } from './components/EarningsTracker';
 import { ProfileEditor } from './components/ProfileEditor';
 import { FreelanceProfile, EarningEntry } from './types';
+import { initAdMob, showBanner, preloadInterstitial, showInterstitial } from './services/adMob';
 
 type Tab = 'dashboard' | 'platforms' | 'earnings' | 'profile';
 
@@ -32,6 +33,14 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard');
   const [profile, setProfile] = useState<FreelanceProfile>(loadProfile);
   const [earnings, setEarnings] = useState<EarningEntry[]>(loadEarnings);
+  const tabSwitchCount = useRef(0);
+
+  useEffect(() => {
+    initAdMob().then(() => {
+      showBanner();
+      preloadInterstitial();
+    });
+  }, []);
 
   const saveProfile = (p: FreelanceProfile) => {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
@@ -43,6 +52,15 @@ export default function App() {
     setEarnings(e);
   };
 
+  const handleTabChange = async (newTab: Tab) => {
+    setTab(newTab);
+    // Показуй interstitial кожні 4 перемикання вкладок
+    tabSwitchCount.current += 1;
+    if (tabSwitchCount.current % 4 === 0) {
+      await showInterstitial();
+    }
+  };
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'dashboard', label: 'Головна' },
     { id: 'platforms', label: 'Платформи' },
@@ -50,7 +68,10 @@ export default function App() {
     { id: 'profile', label: 'Профіль' },
   ];
 
-  const totalEarnings = earnings.reduce((sum, e) => sum + (e.currency === 'USD' ? e.amount : e.currency === 'EUR' ? e.amount * 1.08 : e.amount / 41), 0);
+  const totalEarnings = earnings.reduce(
+    (sum, e) => sum + (e.currency === 'USD' ? e.amount : e.currency === 'EUR' ? e.amount * 1.08 : e.amount / 41),
+    0
+  );
 
   return (
     <div className="min-h-screen bg-gray-950 text-white font-sans">
@@ -79,7 +100,7 @@ export default function App() {
           {tabs.map(t => (
             <button
               key={t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => handleTabChange(t.id)}
               className={`flex-1 py-2.5 text-sm font-semibold transition-colors border-b-2 ${
                 tab === t.id
                   ? 'border-green-400 text-green-400'
@@ -92,9 +113,9 @@ export default function App() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-lg mx-auto px-4 py-4 pb-8">
-        {tab === 'dashboard' && <FreelanceDashboard profile={profile} earnings={earnings} onTabChange={setTab} />}
+      {/* Content — додатковий відступ знизу для банера */}
+      <div className="max-w-lg mx-auto px-4 py-4 pb-24">
+        {tab === 'dashboard' && <FreelanceDashboard profile={profile} earnings={earnings} onTabChange={handleTabChange} />}
         {tab === 'platforms' && <PlatformsList />}
         {tab === 'earnings' && <EarningsTracker earnings={earnings} onUpdate={saveEarnings} />}
         {tab === 'profile' && <ProfileEditor profile={profile} onSave={saveProfile} />}
