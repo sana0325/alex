@@ -1,6 +1,6 @@
 {
-  "appId": "com.goldscalp.signals",
-  "appName": "Gold Scalp Signals",
+  "appId": "com.freelancehub.app",
+  "appName": "Freelance Hub",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
@@ -13,7 +13,7 @@
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
-      "iconColor": "#FFD700"
+      "iconColor": "#22C55E"
     }
   }
 }
