@@ -98,6 +98,16 @@ const CCY_PAIRS: Record<string, PairSignal[]> = {
   ],
 };
 
+// ── Utils ─────────────────────────────────────────────────────────────────────
+
+function stripHtml(html: string): string {
+  return (html ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/\s{2,}/g, ' ').trim();
+}
+
 // ── API helpers ──────────────────────────────────────────────────────────────
 
 function dateStr(d: Date): string {
@@ -164,7 +174,7 @@ export async function fetchNews(category: 'forex' | 'crypto' | 'general' = 'fore
   return (raw ?? []).slice(0, 30).map((a: any) => ({
     id:       a.id,
     headline: a.headline,
-    summary:  a.summary  ?? '',
+    summary:  stripHtml(a.summary ?? ''),
     source:   a.source   ?? '',
     datetime: a.datetime * 1000, // seconds → ms
     url:      a.url      ?? '',

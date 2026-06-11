@@ -594,7 +594,8 @@ const MediumEventRow: React.FC<{ event: FFEvent }> = ({ event: e }) => {
 // ── Calendar Tab ──────────────────────────────────────────────────────────────
 const CalendarTab: React.FC<{ events: FFEvent[]; loading: boolean }> = ({ events, loading }) => {
   const now = Date.now();
-  const relevant = events.filter(e => e.timestamp >= now - 3_600_000);
+  // Show entire week — past events dimmed, future events highlighted
+  const relevant = events;
 
   const days: Record<string, FFEvent[]> = {};
   for (const e of relevant) {
@@ -611,6 +612,11 @@ const CalendarTab: React.FC<{ events: FFEvent[]; loading: boolean }> = ({ events
       {loading && (
         <p className="font-tech text-xs text-center animate-pulse py-8" style={{ color: 'rgba(0,245,255,.4)' }}>
           ⟳ ЗАВАНТАЖЕННЯ…
+        </p>
+      )}
+      {!loading && relevant.length === 0 && (
+        <p className="font-tech text-xs text-center py-8" style={{ color: 'rgba(255,255,255,.25)' }}>
+          Дані недоступні — перевірте інтернет або спробуйте пізніше
         </p>
       )}
       {Object.entries(days).map(([day, evs]) => (
