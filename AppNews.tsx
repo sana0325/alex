@@ -1,9 +1,64 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  FinnhubEvent, NewsArticle, TradeSignal,
-  fetchEconomicCalendar, fetchNews, computeTradeSignal,
+  FinnhubEvent, NewsArticle, TradeSignal, PairSignal,
+  fetchNews, computeTradeSignal,
   relTime, fmtTime, fmtDay,
 } from './services/finnhub';
+import { EconEvent, fetchCalendar } from './services/calendar';
+
+// ── ForexFactory → FinnhubEvent adapter ──────────────────────────────────────
+
+interface FFEvent extends FinnhubEvent {
+  rawActual:   string;
+  rawForecast: string;
+  rawPrev:     string;
+}
+
+function parseNum(s: string): number | null {
+  if (!s) return null;
+  const c = s.replace(/,/g, '');
+  if (c.endsWith('%')) { const n = parseFloat(c.slice(0, -1)); return isNaN(n) ? null : n; }
+  const m = c.match(/^(-?\d+(?:\.\d+)?)(K|M|B|T)?$/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  const mult = m[2] ? (({ K: 1e3, M: 1e6, B: 1e9, T: 1e12 }[m[2].toUpperCase()] ?? 1)) : 1;
+  return isNaN(n) ? null : n * mult;
+}
+
+function adaptEconEvent(e: EconEvent): FFEvent {
+  const actual   = parseNum(e.actual);
+  const estimate = parseNum(e.forecast);
+  const prev     = parseNum(e.previous);
+  const impRaw   = e.impact.toLowerCase();
+  const impact: FinnhubEvent['impact'] =
+    (impRaw === 'high' || impRaw === 'medium' || impRaw === 'low')
+      ? impRaw as FinnhubEvent['impact'] : 'low';
+
+  let signal: FinnhubEvent['signal'] = 'PENDING';
+  let deviation = 0, deviationPct = 0, strength = 0;
+  if (actual !== null && estimate !== null) {
+    deviation    = actual - estimate;
+    deviationPct = estimate !== 0 ? (deviation / Math.abs(estimate)) * 100 : 0;
+    strength     = Math.min(100, Math.abs(deviationPct) * 3);
+    signal = Math.abs(deviationPct) < 2 ? 'INLINE' : deviation > 0 ? 'BEAT' : 'MISS';
+  } else if (actual !== null) {
+    signal = 'BEAT';
+  }
+
+  return {
+    actual, estimate, prev,
+    country:   e.country,
+    event:     e.title,
+    impact,
+    time:      new Date(e.timestamp).toISOString().slice(0, 19).replace('T', ' '),
+    unit:      '',
+    timestamp: e.timestamp,
+    signal, deviation, deviationPct, strength,
+    rawActual:   e.actual,
+    rawForecast: e.forecast,
+    rawPrev:     e.previous,
+  };
+}
 
 type Tab = 'signal' | 'calendar' | 'news';
 
@@ -26,7 +81,7 @@ const IMPACT_COLOR: Record<string, string> = {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function AppNews({ onBack }: { onBack: () => void }) {
   const [tab, setTab]             = useState<Tab>('signal');
-  const [events, setEvents]       = useState<FinnhubEvent[]>([]);
+  const [events, setEvents]       = useState<FFEvent[]>([]);
   const [news, setNews]           = useState<NewsArticle[]>([]);
   const [newsCategory, setNewsCat] = useState<'forex'|'crypto'|'general'>('forex');
   const [loading, setLoading]     = useState(true);
@@ -37,8 +92,8 @@ export default function AppNews({ onBack }: { onBack: () => void }) {
   const loadCalendar = useCallback(async () => {
     try {
       setError('');
-      const ev = await fetchEconomicCalendar();
-      setEvents(ev);
+      const ev = await fetchCalendar();
+      setEvents(ev.map(adaptEconEvent));
       setLastSync(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -167,8 +222,8 @@ export default function AppNews({ onBack }: { onBack: () => void }) {
 // ── Signal Tab ────────────────────────────────────────────────────────────────
 const SignalTab: React.FC<{
   signal: TradeSignal | null;
-  nextHigh: FinnhubEvent | undefined;
-  events: FinnhubEvent[];
+  nextHigh: FFEvent | undefined;
+  events: FFEvent[];
 }> = ({ signal, nextHigh, events }) => {
   const now = Date.now();
 
@@ -470,7 +525,7 @@ const StrategyGuide: React.FC<{ isBeat: boolean; isStrong: boolean }> = ({ isBea
 );
 
 // ── Next event card ───────────────────────────────────────────────────────────
-const NextEventCard: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
+const NextEventCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
   const minsLeft = Math.round((e.timestamp - Date.now()) / 60000);
   const isClose = minsLeft <= 30;
   return (
@@ -488,10 +543,10 @@ const NextEventCard: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
           <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.4)' }}>
             {e.country} · {fmtTime(e.timestamp)}
           </p>
-          {e.estimate != null && (
+          {e.rawForecast && (
             <p className="font-tech text-xs mt-1" style={{ color: C.gold }}>
-              Прогноз: {e.estimate}{e.unit}
-              {e.prev != null && ` · Попер: ${e.prev}${e.unit}`}
+              Прогноз: {e.rawForecast}
+              {e.rawPrev && ` · Попер: ${e.rawPrev}`}
             </p>
           )}
         </div>
@@ -515,7 +570,7 @@ const NextEventCard: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
 };
 
 // ── Medium event row ──────────────────────────────────────────────────────────
-const MediumEventRow: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
+const MediumEventRow: React.FC<{ event: FFEvent }> = ({ event: e }) => {
   const isBeat = e.signal === 'BEAT';
   const isMiss = e.signal === 'MISS';
   const color  = isBeat ? C.green : isMiss ? C.red : 'rgba(255,255,255,.3)';
@@ -537,11 +592,11 @@ const MediumEventRow: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
 };
 
 // ── Calendar Tab ──────────────────────────────────────────────────────────────
-const CalendarTab: React.FC<{ events: FinnhubEvent[]; loading: boolean }> = ({ events, loading }) => {
+const CalendarTab: React.FC<{ events: FFEvent[]; loading: boolean }> = ({ events, loading }) => {
   const now = Date.now();
   const relevant = events.filter(e => e.timestamp >= now - 3_600_000);
 
-  const days: Record<string, FinnhubEvent[]> = {};
+  const days: Record<string, FFEvent[]> = {};
   for (const e of relevant) {
     const key = fmtDay(e.timestamp);
     if (!days[key]) days[key] = [];
@@ -551,7 +606,7 @@ const CalendarTab: React.FC<{ events: FinnhubEvent[]; loading: boolean }> = ({ e
   return (
     <div className="space-y-4">
       <p className="font-tech text-xs px-1" style={{ color: 'rgba(0,245,255,.4)' }}>
-        📅 ECONOMIC CALENDAR · FINNHUB
+        📅 ECONOMIC CALENDAR · FOREXFACTORY
       </p>
       {loading && (
         <p className="font-tech text-xs text-center animate-pulse py-8" style={{ color: 'rgba(0,245,255,.4)' }}>
@@ -572,7 +627,7 @@ const CalendarTab: React.FC<{ events: FinnhubEvent[]; loading: boolean }> = ({ e
   );
 };
 
-const CalEventRow: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
+const CalEventRow: React.FC<{ event: FFEvent }> = ({ event: e }) => {
   const now    = Date.now();
   const isPast = e.timestamp < now;
   const isNow  = Math.abs(e.timestamp - now) < 900_000;
@@ -609,20 +664,20 @@ const CalEventRow: React.FC<{ event: FinnhubEvent }> = ({ event: e }) => {
           <p className="font-tech text-sm" style={{ color: isPast ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.9)' }}>
             {e.event}
           </p>
-          {e.estimate != null && (
+          {e.rawForecast && (
             <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.3)' }}>
-              Прогноз: <span style={{ color: C.gold }}>{e.estimate}{e.unit}</span>
-              {e.prev != null && <span> · Попер: {e.prev}{e.unit}</span>}
+              Прогноз: <span style={{ color: C.gold }}>{e.rawForecast}</span>
+              {e.rawPrev && <span> · Попер: {e.rawPrev}</span>}
             </p>
           )}
         </div>
 
         {/* Result */}
         <div className="flex-shrink-0 text-right">
-          {e.actual != null ? (
+          {e.rawActual ? (
             <div>
               <p className="font-orbitron text-sm font-bold" style={{ color: sColor !== 'transparent' ? sColor : 'rgba(255,255,255,.6)' }}>
-                {e.actual}{e.unit}
+                {e.rawActual}
               </p>
               {e.signal !== 'PENDING' && e.signal !== 'INLINE' && (
                 <p className="font-tech text-xs" style={{ color: sColor }}>
