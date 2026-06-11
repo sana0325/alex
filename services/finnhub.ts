@@ -50,6 +50,7 @@ export interface TradeSignal {
 // ── Country → Currency ───────────────────────────────────────────────────────
 
 export const COUNTRY_CCY: Record<string, string> = {
+  // Finnhub country codes
   US: 'USD', EU: 'EUR', EA: 'EUR', DE: 'EUR', FR: 'EUR', IT: 'EUR',
   GB: 'GBP', UK: 'GBP',
   JP: 'JPY',
@@ -58,6 +59,10 @@ export const COUNTRY_CCY: Record<string, string> = {
   CA: 'CAD',
   NZ: 'NZD',
   CN: 'CNY',
+  // ForexFactory country codes (already are currency codes)
+  USD: 'USD', EUR: 'EUR', GBP: 'GBP', JPY: 'JPY',
+  CHF: 'CHF', AUD: 'AUD', CAD: 'CAD', NZD: 'NZD',
+  ALL: 'USD',
 };
 
 // When currency is BULLISH, these are the pair directions (flip for BEARISH)

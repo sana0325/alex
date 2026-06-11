@@ -564,7 +564,7 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
           </p>
           <p className="font-orbitron text-lg font-black leading-tight text-white">{e.event}</p>
           <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.35)' }}>
-            {e.country}{ccy ? ` · ${ccy}` : ''} · {fmtTime(e.timestamp)} · HIGH IMPACT
+            {ccy ?? e.country} · {fmtTime(e.timestamp)} · HIGH IMPACT
           </p>
         </div>
         <div className="text-right flex-shrink-0">
