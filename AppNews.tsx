@@ -527,6 +527,7 @@ const StrategyGuide: React.FC<{ isBeat: boolean; isStrong: boolean }> = ({ isBea
 // ── Pre-trade setup card ──────────────────────────────────────────────────────
 const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
   const minsLeft = Math.round((e.timestamp - Date.now()) / 60000);
+  const secsLeft = Math.round((e.timestamp - Date.now()) / 1000);
   const isClose  = minsLeft <= 15;
   const accent   = isClose ? C.red : C.gold;
 
@@ -536,6 +537,12 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
     ...p,
     direction: p.direction === 'LONG' ? 'SHORT' : 'LONG',
   }));
+  const mainBull = bullishPairs[0] ?? null;
+  const mainBear = bearishPairs[0] ?? null;
+
+  const timeStr = secsLeft > 60
+    ? `${minsLeft}хв`
+    : `${secsLeft}с`;
 
   return (
     <div className="rounded-2xl relative overflow-hidden scanlines"
@@ -544,7 +551,6 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
            border: `1px solid ${accent}55`,
            boxShadow: `0 0 30px ${accent}20`,
          }}>
-      {/* HUD corners */}
       {(['tl','tr','bl','br'] as const).map(pos => (
         <div key={pos} className={`absolute w-5 h-5 z-10 ${
           pos==='tl'?'top-0 left-0':pos==='tr'?'top-0 right-0':pos==='bl'?'bottom-0 left-0':'bottom-0 right-0'
@@ -559,10 +565,8 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
       {/* Header */}
       <div className="flex items-start justify-between px-5 pt-4 pb-2 relative z-10">
         <div className="flex-1 mr-3">
-          <p className="font-tech text-xs mb-0.5" style={{ color: `${accent}80` }}>
-            ⚡ PRE-TRADE SETUP
-          </p>
-          <p className="font-orbitron text-lg font-black leading-tight text-white">{e.event}</p>
+          <p className="font-tech text-xs mb-0.5" style={{ color: `${accent}80` }}>⚡ PRE-TRADE SETUP</p>
+          <p className="font-orbitron text-base font-black leading-tight text-white">{e.event}</p>
           <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.35)' }}>
             {ccy ?? e.country} · {fmtTime(e.timestamp)} · HIGH IMPACT
           </p>
@@ -570,7 +574,7 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
         <div className="text-right flex-shrink-0">
           <p className="font-orbitron text-3xl font-black leading-none"
              style={{ color: accent, textShadow: `0 0 14px ${accent}` }}>
-            {minsLeft}хв
+            {timeStr}
           </p>
           {isClose
             ? <p className="font-tech text-xs animate-blink mt-1" style={{ color: C.red }}>ГОТУЙТЕСЬ!</p>
@@ -595,57 +599,110 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
         </div>
       )}
 
-      {/* Divider */}
       <div className="mx-5 h-px mb-3" style={{ background: `linear-gradient(90deg,transparent,${accent}30,transparent)` }} />
 
-      {/* BEAT/MISS scenarios */}
-      {ccy && bullishPairs.length > 0 && (
+      {/* BEAT / MISS big direction cards */}
+      {ccy && mainBull && (
         <div className="px-5 mb-3 space-y-2 relative z-10">
-          <p className="font-tech text-xs" style={{ color: 'rgba(0,245,255,.45)' }}>СЦЕНАРІЇ ТОРГІВЛІ</p>
+          <p className="font-tech text-xs mb-1" style={{ color: 'rgba(0,245,255,.5)' }}>КУДИ ВХОДИТИ</p>
 
-          <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,.07)', border: '1px solid rgba(0,255,136,.25)' }}>
-            <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.green }}>
-              ▲ BEAT — краще прогнозу · {ccy} росте
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {bullishPairs.slice(0, 5).map(p => (
-                <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
-                      style={{ background: 'rgba(0,255,136,.12)', color: C.green, border: '1px solid rgba(0,255,136,.25)' }}>
-                  {p.pair.replace('/', '')} {p.direction} {'★'.repeat(p.stars)}
-                </span>
-              ))}
+          {/* BEAT */}
+          <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,.08)', border: '1px solid rgba(0,255,136,.3)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-orbitron text-xs font-bold" style={{ color: C.green }}>▲ BEAT — краще прогнозу</span>
+              <span className="font-tech text-xs px-2 py-0.5 rounded"
+                    style={{ background: 'rgba(0,255,136,.15)', color: C.green, border: '1px solid rgba(0,255,136,.3)' }}>
+                {ccy} РОСТЕ
+              </span>
             </div>
+            {/* Main pair - big */}
+            <div className="flex items-center gap-3 mb-2 px-2 py-2 rounded-lg"
+                 style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.4)' }}>
+              <span className="font-orbitron text-2xl font-black" style={{ color: C.green }}>
+                {mainBull.direction === 'LONG' ? '↑' : '↓'}
+              </span>
+              <div>
+                <p className="font-orbitron text-lg font-black leading-none" style={{ color: C.green }}>
+                  {mainBull.pair.replace('/', '')}
+                </p>
+                <p className="font-tech text-xs" style={{ color: `${C.green}80` }}>
+                  {mainBull.direction} · головна пара · {'★'.repeat(mainBull.stars)}
+                </p>
+              </div>
+            </div>
+            {/* Secondary pairs */}
+            {bullishPairs.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {bullishPairs.slice(1, 5).map(p => (
+                  <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
+                        style={{ background: 'rgba(0,255,136,.1)', color: C.green, border: '1px solid rgba(0,255,136,.2)' }}>
+                    {p.pair.replace('/','')} {p.direction === 'LONG' ? '↑' : '↓'} {'★'.repeat(p.stars)}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="rounded-xl p-3" style={{ background: 'rgba(255,45,85,.07)', border: '1px solid rgba(255,45,85,.25)' }}>
-            <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.red }}>
-              ▼ MISS — гірше прогнозу · {ccy} падає
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {bearishPairs.slice(0, 5).map(p => (
-                <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
-                      style={{ background: 'rgba(255,45,85,.12)', color: C.red, border: '1px solid rgba(255,45,85,.25)' }}>
-                  {p.pair.replace('/', '')} {p.direction} {'★'.repeat(p.stars)}
-                </span>
-              ))}
+          {/* MISS */}
+          <div className="rounded-xl p-3" style={{ background: 'rgba(255,45,85,.08)', border: '1px solid rgba(255,45,85,.3)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-orbitron text-xs font-bold" style={{ color: C.red }}>▼ MISS — гірше прогнозу</span>
+              <span className="font-tech text-xs px-2 py-0.5 rounded"
+                    style={{ background: 'rgba(255,45,85,.15)', color: C.red, border: '1px solid rgba(255,45,85,.3)' }}>
+                {ccy} ПАДАЄ
+              </span>
             </div>
+            {mainBear && (
+              <div className="flex items-center gap-3 mb-2 px-2 py-2 rounded-lg"
+                   style={{ background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.4)' }}>
+                <span className="font-orbitron text-2xl font-black" style={{ color: C.red }}>
+                  {mainBear.direction === 'LONG' ? '↑' : '↓'}
+                </span>
+                <div>
+                  <p className="font-orbitron text-lg font-black leading-none" style={{ color: C.red }}>
+                    {mainBear.pair.replace('/', '')}
+                  </p>
+                  <p className="font-tech text-xs" style={{ color: `${C.red}80` }}>
+                    {mainBear.direction} · головна пара · {'★'.repeat(mainBear.stars)}
+                  </p>
+                </div>
+              </div>
+            )}
+            {bearishPairs.length > 1 && (
+              <div className="flex flex-wrap gap-1.5">
+                {bearishPairs.slice(1, 5).map(p => (
+                  <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
+                        style={{ background: 'rgba(255,45,85,.1)', color: C.red, border: '1px solid rgba(255,45,85,.2)' }}>
+                    {p.pair.replace('/','')} {p.direction === 'LONG' ? '↑' : '↓'} {'★'.repeat(p.stars)}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Entry strategy */}
-      <div className="mx-5 mb-4 rounded-xl p-3 relative z-10"
-           style={{ background: 'rgba(0,245,255,.06)', border: '1px solid rgba(0,245,255,.15)' }}>
-        <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.cyan }}>⚙ ПЛАН ВХОДУ</p>
+      {/* Entry plan — aggressive first */}
+      <div className="mx-5 mb-4 rounded-xl overflow-hidden relative z-10"
+           style={{ border: '1px solid rgba(0,245,255,.2)' }}>
+        <div className="px-3 py-2" style={{ background: 'rgba(0,245,255,.08)', borderBottom: '1px solid rgba(0,245,255,.1)' }}>
+          <p className="font-orbitron text-xs font-bold" style={{ color: C.cyan }}>⚙ ПЛАН ВХОДУ</p>
+        </div>
         {([
-          { t: '0–30с',    txt: 'НЕ входьте — спред 10–50x',        col: C.red },
-          { t: '30с–2хв',  txt: 'Вхід за напрямком першого руху',   col: C.gold },
-          { t: '1–3хв',    txt: 'Чекайте відкат — найкращий RR',    col: C.green },
-          { t: '3–10хв',   txt: 'Підтвердження закритою свічкою',   col: 'rgba(255,255,255,.45)' },
-        ] as { t: string; txt: string; col: string }[]).map(s => (
-          <div key={s.t} className="flex gap-2 mb-1">
-            <span className="font-orbitron text-xs w-16 flex-shrink-0" style={{ color: `${s.col}80` }}>{s.t}</span>
-            <span className="font-tech text-xs" style={{ color: s.col }}>{s.txt}</span>
+          { t: '0–30с',   txt: '⛔ СПРЕД 10-50x — ЧЕКАЙТЕ',              col: '#ff4444', bg: 'rgba(255,68,68,.08)' },
+          { t: '30с–2хв', txt: '⚡ ВХІД ОДРАЗУ — за напрямком руху',      col: C.green,  bg: 'rgba(0,255,136,.1)', rec: true },
+          { t: '1–3хв',   txt: 'Відкат — менший ризик, менший профіт',    col: C.gold,   bg: 'transparent' },
+        ] as { t: string; txt: string; col: string; bg: string; rec?: boolean }[]).map(s => (
+          <div key={s.t} className="flex items-center gap-3 px-3 py-2.5"
+               style={{ background: s.bg, borderBottom: '1px solid rgba(255,255,255,.04)' }}>
+            <span className="font-orbitron text-xs w-14 flex-shrink-0" style={{ color: `${s.col}80` }}>{s.t}</span>
+            <span className="font-tech text-xs flex-1" style={{ color: s.col }}>{s.txt}</span>
+            {s.rec && (
+              <span className="font-tech text-xs px-1.5 py-0.5 rounded flex-shrink-0"
+                    style={{ background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}40` }}>
+                ★
+              </span>
+            )}
           </div>
         ))}
       </div>
