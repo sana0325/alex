@@ -49,7 +49,7 @@ export interface TradeSignal {
 
 // ── Country → Currency ───────────────────────────────────────────────────────
 
-const COUNTRY_CCY: Record<string, string> = {
+export const COUNTRY_CCY: Record<string, string> = {
   US: 'USD', EU: 'EUR', EA: 'EUR', DE: 'EUR', FR: 'EUR', IT: 'EUR',
   GB: 'GBP', UK: 'GBP',
   JP: 'JPY',
@@ -61,7 +61,7 @@ const COUNTRY_CCY: Record<string, string> = {
 };
 
 // When currency is BULLISH, these are the pair directions (flip for BEARISH)
-const CCY_PAIRS: Record<string, PairSignal[]> = {
+export const CCY_PAIRS: Record<string, PairSignal[]> = {
   USD: [
     { pair: 'XAU/USD', direction: 'SHORT', stars: 3 },
     { pair: 'BTC/USD', direction: 'SHORT', stars: 3 },

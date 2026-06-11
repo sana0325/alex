@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   FinnhubEvent, NewsArticle, TradeSignal, PairSignal,
-  fetchNews, computeTradeSignal,
+  fetchNews, computeTradeSignal, COUNTRY_CCY, CCY_PAIRS,
   relTime, fmtTime, fmtDay,
 } from './services/finnhub';
 import { EconEvent, fetchCalendar } from './services/calendar';
@@ -263,7 +263,7 @@ const SignalTab: React.FC<{
           </p>
         </div>
 
-        {nextHigh && <NextEventCard event={nextHigh} />}
+        {nextHigh && <PreTradeCard event={nextHigh} />}
 
         {recentMedium.length > 0 && (
           <div>
@@ -524,47 +524,131 @@ const StrategyGuide: React.FC<{ isBeat: boolean; isStrong: boolean }> = ({ isBea
   </div>
 );
 
-// ── Next event card ───────────────────────────────────────────────────────────
-const NextEventCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
+// ── Pre-trade setup card ──────────────────────────────────────────────────────
+const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
   const minsLeft = Math.round((e.timestamp - Date.now()) / 60000);
-  const isClose = minsLeft <= 30;
+  const isClose  = minsLeft <= 15;
+  const accent   = isClose ? C.red : C.gold;
+
+  const ccy          = COUNTRY_CCY[e.country] ?? null;
+  const bullishPairs = ccy ? (CCY_PAIRS[ccy] ?? []) : [];
+  const bearishPairs: PairSignal[] = bullishPairs.map(p => ({
+    ...p,
+    direction: p.direction === 'LONG' ? 'SHORT' : 'LONG',
+  }));
+
   return (
-    <div className="rounded-xl p-4 relative overflow-hidden"
+    <div className="rounded-2xl relative overflow-hidden scanlines"
          style={{
-           background: isClose ? 'rgba(255,45,85,.1)' : 'rgba(255,184,0,.08)',
-           border: `1px solid ${isClose ? 'rgba(255,45,85,.35)' : 'rgba(255,184,0,.25)'}`,
+           background: `linear-gradient(145deg, #020c1b, ${accent}14)`,
+           border: `1px solid ${accent}55`,
+           boxShadow: `0 0 30px ${accent}20`,
          }}>
-      <p className="font-tech text-xs mb-2" style={{ color: isClose ? C.red : C.gold }}>
-        ⏳ НАСТУПНА HIGH-IMPACT ПОДІЯ
-      </p>
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-orbitron text-base font-bold text-white">{e.event}</p>
-          <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.4)' }}>
-            {e.country} · {fmtTime(e.timestamp)}
+      {/* HUD corners */}
+      {(['tl','tr','bl','br'] as const).map(pos => (
+        <div key={pos} className={`absolute w-5 h-5 z-10 ${
+          pos==='tl'?'top-0 left-0':pos==='tr'?'top-0 right-0':pos==='bl'?'bottom-0 left-0':'bottom-0 right-0'
+        }`} style={{
+          borderTop:    pos.startsWith('t') ? `2px solid ${accent}` : undefined,
+          borderBottom: pos.startsWith('b') ? `2px solid ${accent}` : undefined,
+          borderLeft:   pos.endsWith('l')   ? `2px solid ${accent}` : undefined,
+          borderRight:  pos.endsWith('r')   ? `2px solid ${accent}` : undefined,
+        }} />
+      ))}
+
+      {/* Header */}
+      <div className="flex items-start justify-between px-5 pt-4 pb-2 relative z-10">
+        <div className="flex-1 mr-3">
+          <p className="font-tech text-xs mb-0.5" style={{ color: `${accent}80` }}>
+            ⚡ PRE-TRADE SETUP
           </p>
-          {e.rawForecast && (
-            <p className="font-tech text-xs mt-1" style={{ color: C.gold }}>
-              Прогноз: {e.rawForecast}
-              {e.rawPrev && ` · Попер: ${e.rawPrev}`}
-            </p>
-          )}
+          <p className="font-orbitron text-lg font-black leading-tight text-white">{e.event}</p>
+          <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.35)' }}>
+            {e.country}{ccy ? ` · ${ccy}` : ''} · {fmtTime(e.timestamp)} · HIGH IMPACT
+          </p>
         </div>
-        <div className="text-right">
-          <p className="font-orbitron text-2xl font-black" style={{ color: isClose ? C.red : C.gold }}>
-            {relTime(e.timestamp)}
+        <div className="text-right flex-shrink-0">
+          <p className="font-orbitron text-3xl font-black leading-none"
+             style={{ color: accent, textShadow: `0 0 14px ${accent}` }}>
+            {minsLeft}хв
           </p>
-          {isClose && (
-            <p className="font-tech text-xs animate-blink" style={{ color: C.red }}>
-              ГОТУЙТЕСЬ!
-            </p>
-          )}
+          {isClose
+            ? <p className="font-tech text-xs animate-blink mt-1" style={{ color: C.red }}>ГОТУЙТЕСЬ!</p>
+            : <p className="font-tech text-xs mt-1" style={{ color: `${accent}60` }}>до виходу</p>
+          }
         </div>
       </div>
-      {isClose && (
-        <div className="absolute left-0 right-0 h-0.5 animate-scan"
-             style={{ background: `linear-gradient(90deg,transparent,${C.red}50,transparent)` }} />
+
+      {/* Forecast vs Previous */}
+      {(e.rawForecast || e.rawPrev) && (
+        <div className="mx-5 grid grid-cols-2 gap-3 mb-3 relative z-10">
+          <div className="rounded-lg p-2 text-center"
+               style={{ background: `${accent}0d`, border: `1px solid ${accent}25` }}>
+            <p className="font-tech text-xs mb-0.5" style={{ color: `${accent}60` }}>ПРОГНОЗ</p>
+            <p className="font-orbitron text-base font-bold" style={{ color: accent }}>{e.rawForecast || '—'}</p>
+          </div>
+          <div className="rounded-lg p-2 text-center"
+               style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)' }}>
+            <p className="font-tech text-xs mb-0.5" style={{ color: 'rgba(255,255,255,.3)' }}>ПОПЕРЕДНІЙ</p>
+            <p className="font-orbitron text-base font-bold" style={{ color: 'rgba(255,255,255,.6)' }}>{e.rawPrev || '—'}</p>
+          </div>
+        </div>
       )}
+
+      {/* Divider */}
+      <div className="mx-5 h-px mb-3" style={{ background: `linear-gradient(90deg,transparent,${accent}30,transparent)` }} />
+
+      {/* BEAT/MISS scenarios */}
+      {ccy && bullishPairs.length > 0 && (
+        <div className="px-5 mb-3 space-y-2 relative z-10">
+          <p className="font-tech text-xs" style={{ color: 'rgba(0,245,255,.45)' }}>СЦЕНАРІЇ ТОРГІВЛІ</p>
+
+          <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,.07)', border: '1px solid rgba(0,255,136,.25)' }}>
+            <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.green }}>
+              ▲ BEAT — краще прогнозу · {ccy} росте
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {bullishPairs.slice(0, 5).map(p => (
+                <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
+                      style={{ background: 'rgba(0,255,136,.12)', color: C.green, border: '1px solid rgba(0,255,136,.25)' }}>
+                  {p.pair.replace('/', '')} {p.direction} {'★'.repeat(p.stars)}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl p-3" style={{ background: 'rgba(255,45,85,.07)', border: '1px solid rgba(255,45,85,.25)' }}>
+            <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.red }}>
+              ▼ MISS — гірше прогнозу · {ccy} падає
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {bearishPairs.slice(0, 5).map(p => (
+                <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
+                      style={{ background: 'rgba(255,45,85,.12)', color: C.red, border: '1px solid rgba(255,45,85,.25)' }}>
+                  {p.pair.replace('/', '')} {p.direction} {'★'.repeat(p.stars)}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entry strategy */}
+      <div className="mx-5 mb-4 rounded-xl p-3 relative z-10"
+           style={{ background: 'rgba(0,245,255,.06)', border: '1px solid rgba(0,245,255,.15)' }}>
+        <p className="font-orbitron text-xs font-bold mb-2" style={{ color: C.cyan }}>⚙ ПЛАН ВХОДУ</p>
+        {([
+          { t: '0–30с',    txt: 'НЕ входьте — спред 10–50x',        col: C.red },
+          { t: '30с–2хв',  txt: 'Вхід за напрямком першого руху',   col: C.gold },
+          { t: '1–3хв',    txt: 'Чекайте відкат — найкращий RR',    col: C.green },
+          { t: '3–10хв',   txt: 'Підтвердження закритою свічкою',   col: 'rgba(255,255,255,.45)' },
+        ] as { t: string; txt: string; col: string }[]).map(s => (
+          <div key={s.t} className="flex gap-2 mb-1">
+            <span className="font-orbitron text-xs w-16 flex-shrink-0" style={{ color: `${s.col}80` }}>{s.t}</span>
+            <span className="font-tech text-xs" style={{ color: s.col }}>{s.txt}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
