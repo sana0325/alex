@@ -225,185 +225,104 @@ const SignalTab: React.FC<{
   signal: TradeSignal | null;
   nextHigh: FFEvent | undefined;
   events: FFEvent[];
-}> = ({ signal, nextHigh, events }) => {
-  const now = Date.now();
+}> = ({ signal, nextHigh }) => {
 
-  // Entry window state (time since event)
-  const msSinceEvent = signal ? now - signal.event.timestamp : Infinity;
-  const entryPhase =
-    msSinceEvent < 30_000   ? 'spread'  :  // 0-30s: spread zone
-    msSinceEvent < 120_000  ? 'enter'   :  // 30s-2m: optimal entry
-    msSinceEvent < 300_000  ? 'confirm' :  // 2-5m: safer entry
-    msSinceEvent < 3_600_000 ? 'late'   :  // 5m-1h: signal fading
-    'expired';
+  // Active signal — show immediately after news release
+  if (signal && signal.direction !== 'NONE' && signal.pairs.length > 0) {
+    const isLong  = signal.direction === 'LONG';
+    const accent  = isLong ? C.green : C.red;
+    const arrow   = isLong ? '↑' : '↓';
+    const dir     = isLong ? 'LONG' : 'SHORT';
+    const msSince = Date.now() - signal.event.timestamp;
+    const secsSince = Math.round(msSince / 1000);
+    const timeStr = secsSince < 60
+      ? `+${secsSince}с`
+      : `+${Math.round(msSince / 60000)}хв`;
 
-  // Recent medium events
-  const recentMedium = events
-    .filter(e => e.impact === 'medium' && e.signal !== 'PENDING' && e.timestamp >= now - 7_200_000)
-    .sort((a,b) => b.timestamp - a.timestamp)
-    .slice(0, 3);
-
-  if (!signal) {
     return (
-      <div className="space-y-4">
-        {/* Waiting state */}
-        <div className="rounded-2xl p-6 text-center relative overflow-hidden"
-             style={{ background: C.card, border: `1px solid rgba(0,245,255,.1)` }}>
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            {[0,1,2].map(i => (
-              <div key={i} className={`absolute rounded-full border ${
-                i===0?'animate-radar':i===1?'animate-radar-2':'animate-radar-3'
-              }`} style={{ width:80,height:80,borderColor:'rgba(0,245,255,.2)' }} />
-            ))}
+      <div className="space-y-3">
+        {/* Direction header */}
+        <div className="rounded-2xl relative overflow-hidden scanlines px-5 py-5"
+             style={{
+               background: `linear-gradient(145deg, #020c1b, ${accent}18)`,
+               border: `2px solid ${accent}`,
+               boxShadow: `0 0 40px ${accent}35`,
+             }}>
+          <div className="absolute left-0 right-0 h-px animate-scan"
+               style={{ background: `linear-gradient(90deg,transparent,${accent}50,transparent)` }} />
+
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-tech text-xs" style={{ color: `${accent}70` }}>
+              {signal.event.event} · {fmtTime(signal.event.timestamp)}
+            </p>
+            <span className="font-tech text-xs px-2 py-0.5 rounded"
+                  style={{ background: `${accent}18`, color: `${accent}90`, border: `1px solid ${accent}40` }}>
+              {timeStr}
+            </span>
           </div>
-          <p className="font-orbitron text-2xl font-black mb-2" style={{ color: 'rgba(0,245,255,.5)' }}>
-            ОЧІКУВАННЯ
-          </p>
-          <p className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.3)' }}>
-            Немає актуальних HIGH-impact подій
-          </p>
+
+          {/* Big direction */}
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center flex-shrink-0"
+                 style={{ background: `${accent}20`, border: `2px solid ${accent}`, boxShadow: `0 0 20px ${accent}50` }}>
+              <span className="font-orbitron text-4xl font-black" style={{ color: accent }}>{arrow}</span>
+            </div>
+            <div>
+              <p className="font-orbitron text-5xl font-black leading-none"
+                 style={{ color: accent, textShadow: `0 0 25px ${accent}` }}>
+                {dir}
+              </p>
+              <p className="font-tech text-sm mt-1" style={{ color: `${accent}70` }}>
+                {signal.currency} {isLong ? 'росте' : 'падає'}
+              </p>
+            </div>
+          </div>
+
+          {msSince < 30_000 && (
+            <div className="mt-4 rounded-lg px-3 py-2 text-center"
+                 style={{ background: 'rgba(255,68,68,.15)', border: '1px solid rgba(255,68,68,.4)' }}>
+              <p className="font-orbitron text-xs font-bold animate-blink" style={{ color: '#ff4444' }}>
+                ⛔ ЧЕКАЙТЕ — СПРЕД РОЗШИРЕНИЙ
+              </p>
+            </div>
+          )}
         </div>
 
-        {nextHigh && <PreTradeCard event={nextHigh} />}
-
-        {recentMedium.length > 0 && (
-          <div>
-            <p className="font-tech text-xs mb-2" style={{ color: 'rgba(0,245,255,.4)' }}>
-              MEDIUM IMPACT (останні 2г)
-            </p>
-            {recentMedium.map(e => <MediumEventRow key={e.time+e.event} event={e} />)}
+        {/* Pairs list */}
+        <div className="rounded-xl overflow-hidden"
+             style={{ background: C.card, border: `1px solid ${accent}25` }}>
+          <div className="px-4 py-2.5" style={{ background: `${accent}0d`, borderBottom: `1px solid ${accent}18` }}>
+            <p className="font-orbitron text-xs font-bold" style={{ color: accent }}>ПАРИ ДЛЯ ТОРГІВЛІ</p>
           </div>
-        )}
+          {signal.pairs.slice(0, 6).map(p => (
+            <PairRow key={p.pair} ps={p} />
+          ))}
+        </div>
       </div>
     );
   }
 
-  const s = signal;
-  const isBeat = s.direction === 'LONG';
-  const accent = isBeat ? C.green : C.red;
-  const isStrong = s.strength > 40;
-
+  // Waiting — no active signal
   return (
     <div className="space-y-4">
-      {/* Main signal card */}
-      <div className="rounded-2xl relative overflow-hidden scanlines"
-           style={{
-             background: `linear-gradient(145deg, #020c1b, ${isBeat ? 'rgba(0,255,136,.1)' : 'rgba(255,45,85,.1)'})`,
-             border: `1px solid ${accent}50`,
-             boxShadow: `0 0 30px ${accent}25`,
-           }}>
-        {/* HUD corners */}
-        {['tl','tr','bl','br'].map(pos => (
-          <div key={pos} className={`absolute w-5 h-5 z-10 ${
-            pos==='tl'?'top-0 left-0':pos==='tr'?'top-0 right-0':pos==='bl'?'bottom-0 left-0':'bottom-0 right-0'
-          }`} style={{
-            borderTop:    pos.startsWith('t') ? `2px solid ${accent}` : undefined,
-            borderBottom: pos.startsWith('b') ? `2px solid ${accent}` : undefined,
-            borderLeft:   pos.endsWith('l')   ? `2px solid ${accent}` : undefined,
-            borderRight:  pos.endsWith('r')   ? `2px solid ${accent}` : undefined,
-          }} />
-        ))}
-
-        {/* Scanline */}
-        <div className="absolute left-0 right-0 h-px pointer-events-none animate-scan z-0"
-             style={{ background: `linear-gradient(90deg,transparent,${accent}40,transparent)` }} />
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-2 relative z-10">
-          <div>
-            <p className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.35)' }}>
-              {s.event.country} · {s.event.event} · {fmtTime(s.event.timestamp)}
-            </p>
-            <p className="font-orbitron text-xs font-bold mt-0.5" style={{ color: IMPACT_COLOR['high'] }}>
-              HIGH IMPACT
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.3)' }}>
-              {relTime(s.event.timestamp)}
-            </p>
-          </div>
-        </div>
-
-        {/* Beat/Miss */}
-        <div className="px-5 pb-3 relative z-10">
-          <p className={`font-orbitron text-5xl font-black leading-none`}
-             style={{ color: accent, textShadow: `0 0 20px ${accent}` }}>
-            {isBeat ? 'BEAT ▲' : 'MISS ▼'}
-          </p>
-          <p className="font-tech text-sm mt-1" style={{ color: `${accent}90` }}>
-            {s.label} · {s.currency} {isBeat ? 'підсилюється' : 'слабшає'}
-          </p>
-        </div>
-
-        {/* Actual vs Forecast */}
-        <div className="mx-5 h-px" style={{ background: `linear-gradient(90deg,transparent,${accent}40,transparent)` }} />
-        <div className="grid grid-cols-3 gap-3 px-5 py-3 relative z-10">
-          {[
-            { label: 'ФАКТ',    value: `${s.event.actual}${s.event.unit}`,    color: accent },
-            { label: 'ПРОГНОЗ', value: `${s.event.estimate ?? '—'}${s.event.unit}`, color: C.gold },
-            { label: 'ПОПЕР',   value: `${s.event.prev ?? '—'}${s.event.unit}`,     color: 'rgba(255,255,255,.4)' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="rounded-lg p-2 text-center"
-                 style={{ background: `${color}0d`, border: `1px solid ${color}20` }}>
-              <p className="font-tech text-xs mb-1" style={{ color: `${color}70` }}>{label}</p>
-              <p className="font-tech text-base font-bold" style={{ color, textShadow: `0 0 8px ${color}80` }}>
-                {value}
-              </p>
-            </div>
+      <div className="rounded-2xl p-6 text-center relative overflow-hidden"
+           style={{ background: C.card, border: `1px solid rgba(0,245,255,.1)` }}>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {[0,1,2].map(i => (
+            <div key={i} className={`absolute rounded-full border ${
+              i===0?'animate-radar':i===1?'animate-radar-2':'animate-radar-3'
+            }`} style={{ width:80,height:80,borderColor:'rgba(0,245,255,.15)' }} />
           ))}
         </div>
-
-        {/* Deviation bar */}
-        <div className="px-5 pb-3 relative z-10">
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.3)' }}>ВІДХИЛЕННЯ</span>
-            <span className="font-orbitron text-sm font-bold"
-                  style={{ color: accent, textShadow: `0 0 8px ${accent}` }}>
-              {s.event.deviation > 0 ? '+' : ''}{s.event.deviationPct.toFixed(1)}%
-            </span>
-          </div>
-          <div className="h-3 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,.06)' }}>
-            <div className="h-full rounded-full transition-all duration-700"
-                 style={{
-                   width: `${s.strength}%`,
-                   background: `linear-gradient(90deg, ${accent}80, ${accent})`,
-                   boxShadow: `0 0 10px ${accent}60`,
-                 }} />
-          </div>
-          <div className="flex justify-between mt-0.5">
-            <span className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.2)' }}>Слабкий</span>
-            <span className="font-tech text-xs" style={{ color: isStrong ? accent : 'rgba(255,255,255,.2)' }}>
-              {isStrong ? '⚡ СИЛЬНИЙ' : 'Середній'}
-            </span>
-            <span className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.2)' }}>Дуже сильний</span>
-          </div>
-        </div>
+        <p className="font-orbitron text-2xl font-black mb-2" style={{ color: 'rgba(0,245,255,.5)' }}>
+          ОЧІКУВАННЯ
+        </p>
+        <p className="font-tech text-xs" style={{ color: 'rgba(255,255,255,.3)' }}>
+          Немає актуальних HIGH-impact подій
+        </p>
       </div>
 
-      {/* Entry window */}
-      <EntryWindow phase={entryPhase} msSince={msSinceEvent} />
-
-      {/* Recommended pairs */}
-      {s.pairs.length > 0 && s.direction !== 'NONE' && (
-        <div className="rounded-xl overflow-hidden"
-             style={{ background: C.card, border: `1px solid rgba(0,245,255,.1)` }}>
-          <div className="px-4 py-3" style={{ borderBottom: `1px solid rgba(0,245,255,.06)` }}>
-            <p className="font-orbitron text-xs font-bold" style={{ color: C.cyan }}>
-              РЕКОМЕНДОВАНІ ПАРИ
-            </p>
-            <p className="font-tech text-xs mt-0.5" style={{ color: 'rgba(255,255,255,.25)' }}>
-              {s.reasoning}
-            </p>
-          </div>
-          {s.pairs.slice(0,6).map(p => (
-            <PairRow key={p.pair} ps={p} />
-          ))}
-        </div>
-      )}
-
-      {/* Strategy guide */}
-      <StrategyGuide isBeat={isBeat} isStrong={isStrong} />
+      {nextHigh && <PreTradeCard event={nextHigh} />}
     </div>
   );
 };
@@ -602,110 +521,74 @@ const PreTradeCard: React.FC<{ event: FFEvent }> = ({ event: e }) => {
 
       <div className="mx-5 h-px mb-3" style={{ background: `linear-gradient(90deg,transparent,${accent}30,transparent)` }} />
 
-      {/* BEAT / MISS big direction cards */}
+      {/* Scenarios — plain language */}
       {ccy && mainBull && (
         <div className="px-5 mb-3 space-y-2 relative z-10">
-          <p className="font-tech text-xs mb-1" style={{ color: 'rgba(0,245,255,.5)' }}>КУДИ ВХОДИТИ</p>
+          <p className="font-tech text-xs mb-1" style={{ color: 'rgba(0,245,255,.45)' }}>КУДИ ВХОДИТИ</p>
 
-          {/* BEAT */}
+          {/* If higher than forecast → long ccy pairs */}
           <div className="rounded-xl p-3" style={{ background: 'rgba(0,255,136,.08)', border: '1px solid rgba(0,255,136,.3)' }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-orbitron text-xs font-bold" style={{ color: C.green }}>▲ BEAT — краще прогнозу</span>
-              <span className="font-tech text-xs px-2 py-0.5 rounded"
-                    style={{ background: 'rgba(0,255,136,.15)', color: C.green, border: '1px solid rgba(0,255,136,.3)' }}>
-                {ccy} РОСТЕ
-              </span>
-            </div>
-            {/* Main pair - big */}
-            <div className="flex items-center gap-3 mb-2 px-2 py-2 rounded-lg"
-                 style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.4)' }}>
-              <span className="font-orbitron text-2xl font-black" style={{ color: C.green }}>
-                {mainBull.direction === 'LONG' ? '↑' : '↓'}
-              </span>
-              <div>
-                <p className="font-orbitron text-lg font-black leading-none" style={{ color: C.green }}>
-                  {mainBull.pair.replace('/', '')}
-                </p>
-                <p className="font-tech text-xs" style={{ color: `${C.green}80` }}>
-                  {mainBull.direction} · головна пара · {'★'.repeat(mainBull.stars)}
-                </p>
-              </div>
-            </div>
-            {/* Secondary pairs */}
-            {bullishPairs.length > 1 && (
-              <div className="flex flex-wrap gap-1.5">
-                {bullishPairs.slice(1, 5).map(p => (
-                  <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
-                        style={{ background: 'rgba(0,255,136,.1)', color: C.green, border: '1px solid rgba(0,255,136,.2)' }}>
-                    {p.pair.replace('/','')} {p.direction === 'LONG' ? '↑' : '↓'} {'★'.repeat(p.stars)}
+            <p className="font-tech text-xs mb-2" style={{ color: 'rgba(0,255,136,.6)' }}>
+              Якщо вийде більше прогнозу:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {bullishPairs.slice(0, 5).map(p => (
+                <div key={p.pair} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
+                     style={{ background: 'rgba(0,255,136,.12)', border: '1px solid rgba(0,255,136,.35)' }}>
+                  <span className="font-orbitron text-base font-black" style={{ color: C.green }}>
+                    {p.direction === 'LONG' ? '↑' : '↓'}
                   </span>
-                ))}
-              </div>
-            )}
+                  <span className="font-orbitron text-sm font-bold" style={{ color: C.green }}>
+                    {p.pair.replace('/', '')}
+                  </span>
+                  <span className="font-tech text-xs" style={{ color: `${C.green}60` }}>
+                    {p.direction}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* MISS */}
+          {/* If lower than forecast → short ccy pairs */}
           <div className="rounded-xl p-3" style={{ background: 'rgba(255,45,85,.08)', border: '1px solid rgba(255,45,85,.3)' }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-orbitron text-xs font-bold" style={{ color: C.red }}>▼ MISS — гірше прогнозу</span>
-              <span className="font-tech text-xs px-2 py-0.5 rounded"
-                    style={{ background: 'rgba(255,45,85,.15)', color: C.red, border: '1px solid rgba(255,45,85,.3)' }}>
-                {ccy} ПАДАЄ
-              </span>
-            </div>
-            {mainBear && (
-              <div className="flex items-center gap-3 mb-2 px-2 py-2 rounded-lg"
-                   style={{ background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.4)' }}>
-                <span className="font-orbitron text-2xl font-black" style={{ color: C.red }}>
-                  {mainBear.direction === 'LONG' ? '↑' : '↓'}
-                </span>
-                <div>
-                  <p className="font-orbitron text-lg font-black leading-none" style={{ color: C.red }}>
-                    {mainBear.pair.replace('/', '')}
-                  </p>
-                  <p className="font-tech text-xs" style={{ color: `${C.red}80` }}>
-                    {mainBear.direction} · головна пара · {'★'.repeat(mainBear.stars)}
-                  </p>
-                </div>
-              </div>
-            )}
-            {bearishPairs.length > 1 && (
-              <div className="flex flex-wrap gap-1.5">
-                {bearishPairs.slice(1, 5).map(p => (
-                  <span key={p.pair} className="font-tech text-xs px-2 py-1 rounded"
-                        style={{ background: 'rgba(255,45,85,.1)', color: C.red, border: '1px solid rgba(255,45,85,.2)' }}>
-                    {p.pair.replace('/','')} {p.direction === 'LONG' ? '↑' : '↓'} {'★'.repeat(p.stars)}
+            <p className="font-tech text-xs mb-2" style={{ color: 'rgba(255,45,85,.6)' }}>
+              Якщо вийде менше прогнозу:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {bearishPairs.slice(0, 5).map(p => (
+                <div key={p.pair} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg"
+                     style={{ background: 'rgba(255,45,85,.12)', border: '1px solid rgba(255,45,85,.35)' }}>
+                  <span className="font-orbitron text-base font-black" style={{ color: C.red }}>
+                    {p.direction === 'LONG' ? '↑' : '↓'}
                   </span>
-                ))}
-              </div>
-            )}
+                  <span className="font-orbitron text-sm font-bold" style={{ color: C.red }}>
+                    {p.pair.replace('/', '')}
+                  </span>
+                  <span className="font-tech text-xs" style={{ color: `${C.red}60` }}>
+                    {p.direction}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Entry plan — aggressive first */}
+      {/* Entry reminder */}
       <div className="mx-5 mb-4 rounded-xl overflow-hidden relative z-10"
-           style={{ border: '1px solid rgba(0,245,255,.2)' }}>
-        <div className="px-3 py-2" style={{ background: 'rgba(0,245,255,.08)', borderBottom: '1px solid rgba(0,245,255,.1)' }}>
-          <p className="font-orbitron text-xs font-bold" style={{ color: C.cyan }}>⚙ ПЛАН ВХОДУ</p>
+           style={{ border: '1px solid rgba(255,255,255,.08)' }}>
+        <div className="flex items-center gap-3 px-3 py-2.5"
+             style={{ background: 'rgba(255,68,68,.08)', borderBottom: '1px solid rgba(255,255,255,.05)' }}>
+          <span className="font-orbitron text-xs w-14" style={{ color: 'rgba(255,68,68,.7)' }}>0–30с</span>
+          <span className="font-tech text-xs" style={{ color: '#ff6666' }}>⛔ СПРЕД РОЗШИРЕНИЙ — ЧЕКАЙТЕ</span>
         </div>
-        {([
-          { t: '0–30с',   txt: '⛔ СПРЕД 10-50x — ЧЕКАЙТЕ',              col: '#ff4444', bg: 'rgba(255,68,68,.08)' },
-          { t: '30с–2хв', txt: '⚡ ВХІД ОДРАЗУ — за напрямком руху',      col: C.green,  bg: 'rgba(0,255,136,.1)', rec: true },
-          { t: '1–3хв',   txt: 'Відкат — менший ризик, менший профіт',    col: C.gold,   bg: 'transparent' },
-        ] as { t: string; txt: string; col: string; bg: string; rec?: boolean }[]).map(s => (
-          <div key={s.t} className="flex items-center gap-3 px-3 py-2.5"
-               style={{ background: s.bg, borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-            <span className="font-orbitron text-xs w-14 flex-shrink-0" style={{ color: `${s.col}80` }}>{s.t}</span>
-            <span className="font-tech text-xs flex-1" style={{ color: s.col }}>{s.txt}</span>
-            {s.rec && (
-              <span className="font-tech text-xs px-1.5 py-0.5 rounded flex-shrink-0"
-                    style={{ background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}40` }}>
-                ★
-              </span>
-            )}
-          </div>
-        ))}
+        <div className="flex items-center gap-3 px-3 py-2.5"
+             style={{ background: 'rgba(0,255,136,.08)' }}>
+          <span className="font-orbitron text-xs w-14" style={{ color: `${C.green}70` }}>30с+</span>
+          <span className="font-tech text-xs flex-1" style={{ color: C.green }}>⚡ ВХІД ОДРАЗУ за напрямком</span>
+          <span className="font-tech text-xs px-1.5 py-0.5 rounded"
+                style={{ background: `${C.green}20`, color: C.green, border: `1px solid ${C.green}40` }}>★</span>
+        </div>
       </div>
     </div>
   );
