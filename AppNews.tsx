@@ -89,10 +89,10 @@ export default function AppNews({ onBack }: { onBack: () => void }) {
   const [error, setError]         = useState('');
   const [lastSync, setLastSync]   = useState<Date|null>(null);
 
-  const loadCalendar = useCallback(async () => {
+  const loadCalendar = useCallback(async (force = false) => {
     try {
       setError('');
-      const ev = await fetchCalendar();
+      const ev = await fetchCalendar(force);
       setEvents(ev.map(adaptEconEvent));
       setLastSync(new Date());
     } catch (e) {
@@ -113,7 +113,8 @@ export default function AppNews({ onBack }: { onBack: () => void }) {
 
   useEffect(() => {
     loadCalendar();
-    const t = setInterval(loadCalendar, 60_000); // refresh every minute
+    // Poll every 30s — cache returns stored data unless event is hot (2-min TTL)
+    const t = setInterval(() => loadCalendar(), 30_000);
     return () => clearInterval(t);
   }, [loadCalendar]);
 
@@ -173,7 +174,7 @@ export default function AppNews({ onBack }: { onBack: () => void }) {
                 {lastSync.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
               </span>
             )}
-            <button onClick={loadCalendar}
+            <button onClick={() => loadCalendar(true)}
                     className="font-tech text-xs px-2 py-1 rounded"
                     style={{ color: C.cyan, border: `1px solid rgba(0,245,255,.2)` }}>⟳</button>
           </div>

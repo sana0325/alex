@@ -10,16 +10,28 @@ export interface EconEvent {
 }
 
 const CACHE_KEY = 'econ_cal_v1';
-const TTL = 30 * 60 * 1000;
+const TTL_NORMAL = 30 * 60 * 1000;  // 30 min when no events imminent
+const TTL_HOT    =  2 * 60 * 1000;  // 2 min around event release time
 
-export async function fetchCalendar(): Promise<EconEvent[]> {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) {
-      const { ts, data } = JSON.parse(raw);
-      if (Date.now() - ts < TTL) return data as EconEvent[];
-    }
-  } catch {}
+export async function fetchCalendar(force = false): Promise<EconEvent[]> {
+  if (!force) {
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) {
+        const { ts, data } = JSON.parse(raw) as { ts: number; data: EconEvent[] };
+        // Use short TTL if any HIGH event released in past 15 min or upcoming 5 min
+        const now = Date.now();
+        const isHot = data.some(e =>
+          e.impact === 'High' &&
+          e.timestamp >= now - 15 * 60_000 &&
+          e.timestamp <= now + 5 * 60_000
+        );
+        if (Date.now() - ts < (isHot ? TTL_HOT : TTL_NORMAL)) return data;
+      }
+    } catch {}
+  } else {
+    try { localStorage.removeItem(CACHE_KEY); } catch {}
+  }
 
   try {
     const res = await fetch(
