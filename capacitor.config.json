@@ -1,6 +1,6 @@
 {
   "appId": "com.goldscalp.signals",
-  "appName": "Gold Scalp Signals",
+  "appName": "SMC AI Trader",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main, claude/android-gold-scalp-bot-C6PB6 ]
+    branches: [ main, claude/android-smc-trading-app-z0jru9 ]
   workflow_dispatch:
 
 jobs:
@@ -75,13 +75,13 @@ jobs:
       - name: Rename APK
         run: |
           cp android/app/build/outputs/apk/debug/app-debug.apk \
-             GoldScalpSignals.apk
+             SmcAiTrader.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: GoldScalpSignals-apk
-          path: GoldScalpSignals.apk
+          name: SmcAiTrader-apk
+          path: SmcAiTrader.apk
           retention-days: 90
 
       - name: Create Release (on main branch)
@@ -89,25 +89,27 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "Gold Scalp Signals v${{ github.run_number }}"
+          name: "SMC AI Trader v${{ github.run_number }}"
           body: |
-            ## 📲 Gold Scalp Signals — Android APK
+            ## 📲 SMC AI Trader — Android APK
 
             ### Встановлення (перший раз):
-            1. Завантажте **GoldScalpSignals.apk** нижче
+            1. Завантажте **SmcAiTrader.apk** нижче
             2. На телефоні: Налаштування → Безпека → **Невідомі джерела** → Увімкнути
             3. Відкрийте завантажений APK → Встановити
-            4. Додаток запускається відразу (ключі вбудовані)
+            4. Відкрийте додаток → натисніть ⚙ і вкажіть:
+               - адресу MT5-бриджа (IP:порт комп'ютера з MT5, див. `bridge/README.md`)
+               - свій DeepSeek API ключ
 
             ### Оновлення (якщо вже встановлено):
             - Просто встановіть новий APK поверх старого — підпис постійний
 
             ### Функції:
-            - 32 індикатори (26 сигнальних + 6 фільтрів)
-            - XAUUSD · 5/15/30 хв таймфрейм
-            - Автооновлення кожні 30 сек
-            - 8 вбудованих API ключів з авторотацією
-          files: GoldScalpSignals.apk
+            - Мультивалютний скан (XAUUSD, EURUSD, GBPUSD, USDJPY) · M5
+            - ШІ SMC-аналіз (DeepSeek) з адаптивними playbook під режим ринку
+            - Автовиконання угод через MT5-міст (`bridge/mt5_bridge.py`)
+            - Volume Profile, режими SAFE / AGGRESSIVE, часткове закриття + БУ
+          files: SmcAiTrader.apk
           draft: false
           prerelease: false
         env:

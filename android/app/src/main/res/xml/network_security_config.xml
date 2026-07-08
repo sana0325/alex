@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The MT5 bridge runs as a plain ws:// (unencrypted) WebSocket server on the
+  user's own LAN. Android blocks cleartext traffic by default since API 28,
+  so it must be explicitly allowed here for the app to reach the bridge.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
