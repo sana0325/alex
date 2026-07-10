@@ -24,6 +24,15 @@ export function getJournal(): JournalEntry[] {
   return load<JournalEntry>(JOURNAL_KEY).sort((a, b) => b.closedAt - a.closedAt);
 }
 
+// Used for entries whose P/L was already computed natively (the background
+// TradingWatchService), so we don't recompute and risk a mismatch with the
+// number the user already saw in the push notification.
+export function appendPrecomputedJournalEntry(entry: JournalEntry): void {
+  const all = load<JournalEntry>(JOURNAL_KEY);
+  all.push(entry);
+  save(JOURNAL_KEY, all);
+}
+
 export function recordClosedTrade(trade: OpenTrade, exitPrice: number, closedAt = Date.now()): JournalEntry {
   const directionSign = trade.side === 'LONG' ? 1 : -1;
   const priceDelta = (exitPrice - trade.entry) * directionSign;

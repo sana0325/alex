@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { TradeBotSettings, TradedSymbol, Candle, AiSignal, OpenTrade, PendingOrder, JournalReview } from './types';
+import { App as CapacitorApp } from '@capacitor/app';
+import { TradeBotSettings, TradedSymbol, Candle, AiSignal, OpenTrade, PendingOrder, JournalReview, JournalEntry, JournalOutcome } from './types';
 import {
   DEFAULT_SYMBOLS, DEFAULT_LEVERAGE, MAX_OPEN_POSITIONS, TRADE_SETTINGS_KEY,
   GREETING_SEEN_KEY, REVIEW_INTERVAL_MS, LIMIT_ORDER_TIMEOUT_MS, LIMIT_ORDER_MAX_DRIFT_PCT,
@@ -11,9 +12,10 @@ import { computePocPrice } from './services/marketUtils';
 import {
   getJournal, computeStats, getReviews, saveReview, isReviewDue, entriesSince,
   lastReviewAt, latestLessons, recordClosedTrade, getOpenTrades, addOpenTrade, removeOpenTrade,
-  getPendingOrder, savePendingOrder, getPaperBalance, adjustPaperBalance,
+  getPendingOrder, savePendingOrder, getPaperBalance, adjustPaperBalance, appendPrecomputedJournalEntry,
 } from './services/journal';
 import { ensureNotificationPermission, notifyTradeClosed } from './services/notifications';
+import { startTradingWatch, stopTradingWatch, drainTradingWatchEvents } from './services/tradingWatch';
 import { Greeting } from './components/Greeting';
 import { TradingView, LiveTrade } from './components/TradingView';
 import { JournalView } from './components/JournalView';
@@ -127,6 +129,77 @@ export default function App() {
   };
 
   useEffect(() => { ensureNotificationPermission(); }, []);
+
+  // ── Hand off trade watching to the native foreground service while backgrounded ──
+  // Android throttles the WebView's JS timers as soon as the app isn't
+  // visible, so this app's own poll loop effectively "falls asleep" — the
+  // native TradingWatchService keeps making its own signed BingX calls and
+  // fires the close notification independent of the WebView. Only live
+  // (real-money) trades are worth handing off — paper trades only exist in
+  // this JS simulation, nothing to poll on the exchange while away.
+  useEffect(() => {
+    const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) {
+        stopTradingWatch();
+        drainTradingWatchEvents().then(events => {
+          for (const ev of events) {
+            if (ev.type === 'cancelled') {
+              if (pendingOrderRef.current && pendingOrderRef.current.id === ev.tradeId) {
+                updatePendingOrder(null);
+              }
+              continue;
+            }
+            if (ev.type === 'closed' && ev.entry !== undefined && ev.exit !== undefined) {
+              const trade = openTradesRef.current.find(t => t.id === ev.tradeId);
+              const entry: JournalEntry = {
+                id: ev.tradeId,
+                symbol: ev.symbol,
+                side: ev.side ?? trade?.side ?? 'LONG',
+                entry: ev.entry,
+                exit: ev.exit,
+                sl: ev.sl ?? trade?.sl ?? 0,
+                tp1: ev.tp1 ?? trade?.tp1 ?? 0,
+                stakeUSDT: ev.stakeUSDT ?? trade?.stakeUSDT ?? 0,
+                leverage: ev.leverage ?? trade?.leverage ?? settingsRef.current.leverage,
+                pnlUSDT: ev.pnlUSDT ?? 0,
+                pnlPercent: ev.pnlPercent ?? 0,
+                outcome: (ev.outcome as JournalOutcome) ?? 'BREAKEVEN',
+                setup: ev.setup ?? trade?.setup ?? '',
+                aiReason: ev.aiReason ?? trade?.aiReason ?? '',
+                openedAt: ev.openedAt ?? trade?.openedAt ?? Date.now(),
+                closedAt: ev.closedAt ?? Date.now(),
+              };
+              appendPrecomputedJournalEntry(entry);
+              removeOpenTrade(ev.tradeId);
+              updateOpenTrades(prev => prev.filter(t => t.id !== ev.tradeId));
+              updatePendingOrder(null);
+              setJournalEntries(prev => [entry, ...prev]);
+              // Already notified natively in real time — no duplicate notification here.
+            }
+          }
+        });
+      } else if (live) {
+        const trade = openTradesRef.current.find(t => !t.simulated);
+        const pending = pendingOrderRef.current;
+        if (trade) {
+          startTradingWatch({
+            apiKey: settingsRef.current.bingxApiKey, apiSecret: settingsRef.current.bingxApiSecret,
+            mode: 'position', symbol: trade.symbol, side: trade.side, tradeId: trade.id,
+            entry: trade.entry, sl: trade.sl, tp1: trade.tp1, stakeUSDT: trade.stakeUSDT,
+            leverage: trade.leverage, setup: trade.setup, aiReason: trade.aiReason, openedAt: trade.openedAt,
+          });
+        } else if (pending) {
+          startTradingWatch({
+            apiKey: settingsRef.current.bingxApiKey, apiSecret: settingsRef.current.bingxApiSecret,
+            mode: 'order', symbol: pending.symbol, side: pending.side, orderId: pending.orderId, tradeId: pending.id,
+            entry: pending.price, sl: pending.sl, tp1: pending.tp1, stakeUSDT: pending.stakeUSDT,
+            leverage: pending.leverage, setup: pending.setup, aiReason: pending.aiReason, openedAt: pending.placedAt,
+          });
+        }
+      }
+    });
+    return () => { listenerPromise.then(handle => handle.remove()); };
+  }, [live, updateOpenTrades, updatePendingOrder]);
 
   // ── Contract precision (fetched once, public endpoint) ──────────────────
   useEffect(() => {
