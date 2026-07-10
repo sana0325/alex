@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { createChart, IChartApi, ISeriesApi, Time } from 'lightweight-charts';
-import { Candle, AiSignal, OpenTrade, TradedSymbol } from '../types';
+import { Candle, AiSignal, OpenTrade, PendingOrder, TradedSymbol } from '../types';
 
 export interface LiveTrade extends OpenTrade {
   markPrice: number;
@@ -16,7 +16,9 @@ interface Props {
   signal: AiSignal | null;
   pocPrice: number | null;
   liveTrades: LiveTrade[];
+  pendingOrder: PendingOrder | null;
   onCloseTrade: (tradeId: string) => void;
+  onCancelPendingOrder: () => void;
   aiStatus: string;
   stakeUSDT: number;
   leverage: number;
@@ -28,7 +30,7 @@ const fmt = (v: number | null | undefined, digits: number) =>
 
 export function TradingView({
   symbols, prices, activeSymbol, onSelectSymbol, candles, signal, pocPrice,
-  liveTrades, onCloseTrade, aiStatus, stakeUSDT, leverage, live,
+  liveTrades, pendingOrder, onCloseTrade, onCancelPendingOrder, aiStatus, stakeUSDT, leverage, live,
 }: Props) {
   const activeMeta = symbols.find(s => s.symbol === activeSymbol) ?? symbols[0];
   const chartRef = useRef<HTMLDivElement>(null);
@@ -72,6 +74,7 @@ export function TradingView({
         <div className="flex gap-2 flex-wrap">
           {symbols.map(s => {
             const trade = liveTrades.find(t => t.symbol === s.symbol);
+            const pending = pendingOrder?.symbol === s.symbol;
             return (
               <button
                 key={s.symbol}
@@ -83,6 +86,7 @@ export function TradingView({
                 <span>{s.icon} {s.symbol}</span>
                 <span className="text-yellow-500">{prices[s.symbol] ? prices[s.symbol]!.toFixed(s.digits) : '—'}</span>
                 {trade && <span className={`w-2 h-2 rounded-full animate-pulse ${trade.side === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`} />}
+                {pending && <span className="w-2 h-2 rounded-full animate-pulse bg-yellow-500" />}
               </button>
             );
           })}
@@ -105,7 +109,27 @@ export function TradingView({
         </div>
       </div>
 
-      {liveTrades.length === 0 && (
+      {pendingOrder && (() => {
+        const meta = symbols.find(s => s.symbol === pendingOrder.symbol);
+        return (
+          <div className="p-4 bg-[#0f0d05] border border-yellow-600/30 rounded-lg flex justify-between items-center font-mono text-sm flex-wrap gap-3">
+            <div>
+              <span className="px-2 py-1 rounded text-xs font-bold bg-yellow-950 text-yellow-400">
+                {meta?.icon} {pendingOrder.symbol} {pendingOrder.side} — очікує виконання лімітного ордера
+              </span>
+              <div className="text-gray-400 mt-2 text-xs">
+                Ціна входу: {fmt(pendingOrder.price, meta?.digits ?? 2)} | SL: <span className="text-red-400">{fmt(pendingOrder.sl, meta?.digits ?? 2)}</span> | TP: <span className="text-green-400 font-bold">{fmt(pendingOrder.tp1, meta?.digits ?? 2)}</span>
+              </div>
+              <div className="text-gray-500 mt-1 text-xs">Мейкер-ордер (менше спреду й комісії) · ставка ${pendingOrder.stakeUSDT} · {pendingOrder.leverage}x</div>
+            </div>
+            <button onClick={onCancelPendingOrder} className="px-4 py-2 bg-[#151522] border border-[#232336] rounded text-xs hover:bg-red-950/40 hover:text-red-400 transition-all">
+              Скасувати ордер
+            </button>
+          </div>
+        );
+      })()}
+
+      {liveTrades.length === 0 && !pendingOrder && (
         <div className="p-4 bg-[#090912] border border-[#1a1a2e] rounded-lg text-center text-xs text-gray-500">
           Немає відкритих угод. Бот шукає сетап...
         </div>
@@ -119,6 +143,7 @@ export function TradingView({
               <span className={`px-2 py-1 rounded text-xs font-bold ${t.side === 'LONG' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
                 {meta?.icon} {t.symbol} {t.side} [{t.setup}]
               </span>
+              {t.simulated && <span className="ml-2 px-2 py-1 rounded text-[10px] font-bold bg-blue-950 text-blue-400">ДЕМО</span>}
               <div className="text-gray-400 mt-2 text-xs">
                 Вхід: {fmt(t.entry, meta?.digits ?? 2)} | SL: <span className="text-red-400">{fmt(t.sl, meta?.digits ?? 2)}</span> | TP: <span className="text-green-400 font-bold">{fmt(t.tp1, meta?.digits ?? 2)}</span>
               </div>
@@ -127,7 +152,7 @@ export function TradingView({
               </div>
             </div>
             <button onClick={() => onCloseTrade(t.id)} className="px-4 py-2 bg-[#151522] border border-[#232336] rounded text-xs hover:bg-red-950/40 hover:text-red-400 transition-all">
-              Закрити на біржі
+              {t.simulated ? 'Закрити демо-угоду' : 'Закрити на біржі'}
             </button>
           </div>
         );

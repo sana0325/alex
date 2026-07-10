@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { TradeBotSettings, TradedSymbol, Candle, AiSignal, OpenTrade, JournalReview } from './types';
+import { TradeBotSettings, TradedSymbol, Candle, AiSignal, OpenTrade, PendingOrder, JournalReview } from './types';
 import {
   DEFAULT_SYMBOLS, DEFAULT_LEVERAGE, MAX_OPEN_POSITIONS, TRADE_SETTINGS_KEY,
-  GREETING_SEEN_KEY, REVIEW_INTERVAL_MS, getStakeUSDT,
+  GREETING_SEEN_KEY, REVIEW_INTERVAL_MS, LIMIT_ORDER_TIMEOUT_MS, LIMIT_ORDER_MAX_DRIFT_PCT,
+  getStakeUSDT,
 } from './constants';
 import * as bingx from './services/bingx';
 import { fetchTradingSignal, generateJournalReview } from './services/aiTrader';
@@ -10,7 +11,9 @@ import { computePocPrice } from './services/marketUtils';
 import {
   getJournal, computeStats, getReviews, saveReview, isReviewDue, entriesSince,
   lastReviewAt, latestLessons, recordClosedTrade, getOpenTrades, addOpenTrade, removeOpenTrade,
+  getPendingOrder, savePendingOrder, getPaperBalance, adjustPaperBalance,
 } from './services/journal';
+import { ensureNotificationPermission, notifyTradeClosed } from './services/notifications';
 import { Greeting } from './components/Greeting';
 import { TradingView, LiveTrade } from './components/TradingView';
 import { JournalView } from './components/JournalView';
@@ -60,6 +63,8 @@ export default function App() {
   const [balance, setBalance] = useState<bingx.BingXBalance | null>(null);
   const [positions, setPositions] = useState<bingx.BingXPosition[]>([]);
   const [openTrades, setOpenTrades] = useState<OpenTrade[]>(() => getOpenTrades());
+  const [pendingOrder, setPendingOrder] = useState<PendingOrder | null>(() => getPendingOrder());
+  const [paperBalance, setPaperBalance] = useState<number>(() => getPaperBalance());
   const [aiStatus, setAiStatus] = useState('Очікування даних...');
   const [analyzing, setAnalyzing] = useState(false);
   const [journalEntries, setJournalEntries] = useState(() => getJournal());
@@ -73,16 +78,43 @@ export default function App() {
   const leverageSetRef = useRef<Set<string>>(new Set());
   const marketsRef = useRef(markets);
   const openTradesRef = useRef(openTrades);
+  const pendingOrderRef = useRef(pendingOrder);
+  const paperBalanceRef = useRef(paperBalance);
   const journalRef = useRef(journalEntries);
+  const settingsRef = useRef(settings);
+  const balanceRef = useRef(balance);
 
   useEffect(() => { marketsRef.current = markets; }, [markets]);
-  useEffect(() => { openTradesRef.current = openTrades; }, [openTrades]);
   useEffect(() => { journalRef.current = journalEntries; }, [journalEntries]);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => { balanceRef.current = balance; }, [balance]);
+
+  // Open trades / pending order / paper balance are mutated synchronously
+  // through these helpers so the same tick that closes a trade can also see
+  // the freed-up slot (React state updates alone would lag a render behind).
+  const updateOpenTrades = useCallback((updater: (prev: OpenTrade[]) => OpenTrade[]) => {
+    const next = updater(openTradesRef.current);
+    openTradesRef.current = next;
+    setOpenTrades(next);
+  }, []);
+  const updatePendingOrder = useCallback((order: PendingOrder | null) => {
+    pendingOrderRef.current = order;
+    savePendingOrder(order);
+    setPendingOrder(order);
+  }, []);
+  const updatePaperBalance = useCallback((deltaUSDT: number) => {
+    const next = adjustPaperBalance(deltaUSDT);
+    paperBalanceRef.current = next;
+    setPaperBalance(next);
+    return next;
+  }, []);
 
   const creds: bingx.BingXCreds = { apiKey: settings.bingxApiKey, apiSecret: settings.bingxApiSecret };
   const hasCreds = !!(settings.bingxApiKey && settings.bingxApiSecret);
   const live = hasCreds && settings.liveTradingEnabled;
-  const stakeUSDT = getStakeUSDT(balance?.balance ?? null);
+  const referenceBalance = live ? balance?.balance ?? null : paperBalance;
+  const stakeUSDT = getStakeUSDT(referenceBalance);
+  const slotOccupied = openTrades.length >= MAX_OPEN_POSITIONS || pendingOrder !== null;
 
   const dismissGreeting = () => {
     try { localStorage.setItem(GREETING_SEEN_KEY, '1'); } catch { /* ignore */ }
@@ -94,6 +126,8 @@ export default function App() {
     setSettings(s);
   };
 
+  useEffect(() => { ensureNotificationPermission(); }, []);
+
   // ── Contract precision (fetched once, public endpoint) ──────────────────
   useEffect(() => {
     bingx.getContracts().then(list => {
@@ -103,22 +137,82 @@ export default function App() {
     }).catch(() => { /* ignore, fall back to default precision */ });
   }, []);
 
-  // ── Reconcile: a locally tracked trade whose BingX position vanished (TP/SL/manual) ──
+  const closeTradeAndJournal = useCallback((trade: OpenTrade, exitPrice: number) => {
+    const entry = recordClosedTrade(trade, exitPrice);
+    removeOpenTrade(trade.id);
+    updateOpenTrades(prev => prev.filter(t => t.id !== trade.id));
+    setJournalEntries(prev => [entry, ...prev]);
+
+    let updatedBalance: number | null = null;
+    if (entry.simulated) {
+      updatedBalance = updatePaperBalance(entry.pnlUSDT);
+    } else {
+      updatedBalance = balanceRef.current ? balanceRef.current.balance + entry.pnlUSDT : null;
+    }
+    notifyTradeClosed(entry, updatedBalance);
+    return entry;
+  }, [updateOpenTrades, updatePaperBalance]);
+
+  // ── Reconcile: a locally tracked LIVE trade whose BingX position vanished (TP/SL/manual) ──
   const reconcileClosedTrades = useCallback((livePositions: bingx.BingXPosition[], latestMarkets: Record<string, MarketState>) => {
     const openSymbols = new Set(livePositions.map(p => p.symbol));
-    const trades = openTradesRef.current;
-    const remaining: OpenTrade[] = [];
-    let changed = false;
-    for (const t of trades) {
-      if (openSymbols.has(t.symbol)) { remaining.push(t); continue; }
-      changed = true;
+    for (const t of openTradesRef.current.filter(t => !t.simulated)) {
+      if (openSymbols.has(t.symbol)) continue;
       const exitPrice = latestMarkets[t.symbol]?.price ?? marketsRef.current[t.symbol]?.price ?? t.entry;
-      const entry = recordClosedTrade(t, exitPrice);
-      removeOpenTrade(t.id);
-      setJournalEntries(prev => [entry, ...prev]);
+      closeTradeAndJournal(t, exitPrice);
     }
-    if (changed) setOpenTrades(remaining);
-  }, []);
+  }, [closeTradeAndJournal]);
+
+  // ── Pending limit order: poll for fill, or cancel on timeout/drift ───────
+  const pollPendingOrder = useCallback(async (latestMarkets: Record<string, MarketState>) => {
+    const pending = pendingOrderRef.current;
+    if (!pending) return;
+
+    try {
+      const status = await bingx.getOrder(creds, pending.symbol, pending.orderId);
+      if (status?.status === 'FILLED') {
+        const trade: OpenTrade = {
+          id: pending.id, symbol: pending.symbol, side: pending.side,
+          entry: status.avgPrice || pending.price, sl: pending.sl, tp1: pending.tp1,
+          quantity: status.executedQty || pending.quantity, stakeUSDT: pending.stakeUSDT,
+          leverage: pending.leverage, setup: pending.setup, aiReason: pending.aiReason, openedAt: Date.now(),
+        };
+        addOpenTrade(trade);
+        updateOpenTrades(prev => [...prev, trade]);
+        updatePendingOrder(null);
+        setAiStatus(`${pending.symbol}: лімітний ордер виконано, позиція відкрита`);
+        return;
+      }
+      if (status?.status === 'CANCELLED' || status?.status === 'REJECTED' || status?.status === 'EXPIRED') {
+        updatePendingOrder(null);
+        return;
+      }
+
+      const price = latestMarkets[pending.symbol]?.price ?? marketsRef.current[pending.symbol]?.price;
+      const driftPct = price ? Math.abs(price - pending.price) / pending.price * 100 : 0;
+      const timedOut = Date.now() - pending.placedAt > LIMIT_ORDER_TIMEOUT_MS;
+
+      if (timedOut || driftPct > LIMIT_ORDER_MAX_DRIFT_PCT) {
+        await bingx.cancelOrder(creds, pending.symbol, pending.orderId);
+        updatePendingOrder(null);
+        setAiStatus(`${pending.symbol}: лімітний ордер скасовано (${timedOut ? 'час вийшов' : 'ціна пішла'}) — шукаю далі`);
+      }
+    } catch {
+      /* transient API error — try again next poll */
+    }
+  }, [creds, updateOpenTrades, updatePendingOrder]);
+
+  // ── Paper trading: simulate exits off real market prices when not live ──
+  const checkPaperExits = useCallback((latestMarkets: Record<string, MarketState>) => {
+    for (const t of openTradesRef.current.filter(t => t.simulated)) {
+      const price = latestMarkets[t.symbol]?.price ?? marketsRef.current[t.symbol]?.price;
+      if (!price) continue;
+      let exit: number | null = null;
+      if (t.side === 'LONG') { if (price <= t.sl) exit = t.sl; else if (price >= t.tp1) exit = t.tp1; }
+      else { if (price >= t.sl) exit = t.sl; else if (price <= t.tp1) exit = t.tp1; }
+      if (exit !== null) closeTradeAndJournal(t, exit);
+    }
+  }, [closeTradeAndJournal]);
 
   // ── Poll market data + account state ─────────────────────────────────────
   useEffect(() => {
@@ -137,6 +231,7 @@ export default function App() {
       }
       if (stopped) return;
       setMarkets(prev => ({ ...prev, ...nextMarkets }));
+      marketsRef.current = { ...marketsRef.current, ...nextMarkets };
 
       if (hasCreds) {
         try {
@@ -151,6 +246,10 @@ export default function App() {
             reconcileClosedTrades(pos, nextMarkets);
           }
         } catch { /* keep last known positions */ }
+
+        if (!stopped) await pollPendingOrder(nextMarkets);
+      } else {
+        checkPaperExits(nextMarkets);
       }
     };
 
@@ -160,7 +259,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasCreds, settings.bingxApiKey, settings.bingxApiSecret]);
 
-  // ── AI scan rotation across symbols without an open trade ────────────────
+  // ── AI scan rotation — keeps looking across ALL symbols, even mid-trade ──
   const runAiScan = useCallback(async (s: TradedSymbol) => {
     isAiLoadingRef.current = true;
     lastAiCallRef.current = Date.now();
@@ -170,34 +269,38 @@ export default function App() {
       const pocPrice = computePocPrice(m.candles);
       const stats = computeStats(journalRef.current);
       const lessons = latestLessons();
-      const signal = await fetchTradingSignal(settings.deepseekKey, s.symbol, s.market, m.candles, pocPrice, lessons, stats);
+      const signal = await fetchTradingSignal(settingsRef.current.deepseekKey, s.symbol, s.market, m.candles, pocPrice, lessons, stats);
       setMarkets(prev => ({ ...prev, [s.symbol]: { ...prev[s.symbol], signal } }));
+      marketsRef.current = { ...marketsRef.current, [s.symbol]: { ...marketsRef.current[s.symbol], signal } };
       setAiStatus(signal.type === 'WAIT' ? `${s.symbol}: WAIT (${signal.score} балів)` : `${s.symbol}: сетап ${signal.type} (${signal.score} балів)`);
     } catch {
       setAiStatus(`Помилка ШІ-аналізу ${s.symbol}`);
     } finally {
       isAiLoadingRef.current = false;
     }
-  }, [settings.deepseekKey]);
+  }, []);
 
   useEffect(() => {
     if (!settings.deepseekKey) { setAiStatus('Додайте DeepSeek API ключ у налаштуваннях (⚙)'); return; }
     if (isAiLoadingRef.current) return;
     if (Date.now() - lastAiCallRef.current < AI_SCAN_COOLDOWN_MS) return;
 
-    const candidates = symbols.filter(s => (markets[s.symbol]?.candles.length ?? 0) >= 60 && !openTrades.some(t => t.symbol === s.symbol));
+    // Scans every pair on rotation regardless of the trade slot, so the bot
+    // keeps building a live picture of the whole market instead of sitting
+    // idle — only ENTRY is gated by slotOccupied, not analysis.
+    const candidates = symbols.filter(s => (markets[s.symbol]?.candles.length ?? 0) >= 60);
     if (candidates.length === 0) return;
 
     const target = candidates[scanIndexRef.current % candidates.length];
     scanIndexRef.current += 1;
     runAiScan(target);
-  }, [markets, openTrades, settings.deepseekKey, runAiScan]);
+  }, [markets, settings.deepseekKey, runAiScan]);
 
-  // ── Trade execution ───────────────────────────────────────────────────────
-  const openTradeOnBingx = useCallback(async (s: TradedSymbol, sig: AiSignal, execPrice: number) => {
-    const stake = getStakeUSDT(balance?.balance ?? null);
+  // ── Live entry: resting maker-only limit order (less spread/fees than market) ──
+  const openLimitOrderOnBingx = useCallback(async (s: TradedSymbol, sig: AiSignal) => {
+    const stake = getStakeUSDT(balanceRef.current?.balance ?? null);
     const contract = contractsRef.current[s.symbol];
-    const qtyRaw = (stake * settings.leverage) / execPrice;
+    const qtyRaw = (stake * settingsRef.current.leverage) / sig.entry;
     const qty = contract ? bingx.roundToPrecision(qtyRaw, contract.quantityPrecision) : Number(qtyRaw.toFixed(3));
     if (qty <= 0) { setAiStatus(`${s.symbol}: ставка занадто мала для мінімального розміру контракту`); return; }
 
@@ -207,34 +310,46 @@ export default function App() {
 
     try {
       if (!leverageSetRef.current.has(leverageKey)) {
-        await bingx.setLeverage(creds, s.symbol, positionSide, settings.leverage);
+        await bingx.setLeverage(creds, s.symbol, positionSide, settingsRef.current.leverage);
         leverageSetRef.current.add(leverageKey);
       }
-      await bingx.placeMarketOrder(creds, {
-        symbol: s.symbol, side, positionSide, quantity: qty,
+      const { orderId } = await bingx.placeLimitOrder(creds, {
+        symbol: s.symbol, side, positionSide, quantity: qty, price: sig.entry,
         stopLossPrice: sig.sl, takeProfitPrice: sig.tp1,
       });
 
-      const trade: OpenTrade = {
-        id: crypto.randomUUID(), symbol: s.symbol, side: sig.type as 'LONG' | 'SHORT',
-        entry: execPrice, sl: sig.sl, tp1: sig.tp1, quantity: qty, stakeUSDT: stake,
-        leverage: settings.leverage, setup: sig.setup, aiReason: sig.reason, openedAt: Date.now(),
+      const pending: PendingOrder = {
+        id: crypto.randomUUID(), orderId, symbol: s.symbol, side: sig.type as 'LONG' | 'SHORT',
+        price: sig.entry, sl: sig.sl, tp1: sig.tp1, quantity: qty, stakeUSDT: stake,
+        leverage: settingsRef.current.leverage, setup: sig.setup, aiReason: sig.reason, placedAt: Date.now(),
       };
-      addOpenTrade(trade);
-      setOpenTrades(prev => [...prev, trade]);
+      updatePendingOrder(pending);
       lastTradeAtRef.current[s.symbol] = Date.now();
-      setAiStatus(`${s.symbol}: відкрито ${sig.type} на BingX (ставка $${stake}, ${settings.leverage}x)`);
+      setAiStatus(`${s.symbol}: лімітний ордер ${sig.type} виставлено @ ${sig.entry} (ставка $${stake}, ${settingsRef.current.leverage}x)`);
     } catch (e: any) {
-      setAiStatus(`${s.symbol}: помилка відкриття ордера — ${e?.message ?? e}`);
+      setAiStatus(`${s.symbol}: помилка виставлення ордера — ${e?.message ?? e}`);
     }
-  }, [balance, creds, settings.leverage]);
+  }, [creds, updatePendingOrder]);
+
+  // ── Paper entry: simulate a fill immediately at market for continuous learning ──
+  const openPaperTrade = useCallback((s: TradedSymbol, sig: AiSignal, execPrice: number) => {
+    const stake = getStakeUSDT(paperBalanceRef.current);
+    const trade: OpenTrade = {
+      id: crypto.randomUUID(), symbol: s.symbol, side: sig.type as 'LONG' | 'SHORT',
+      entry: execPrice, sl: sig.sl, tp1: sig.tp1, quantity: 0, stakeUSDT: stake,
+      leverage: settingsRef.current.leverage, setup: sig.setup, aiReason: sig.reason,
+      openedAt: Date.now(), simulated: true,
+    };
+    addOpenTrade(trade);
+    updateOpenTrades(prev => [...prev, trade]);
+    lastTradeAtRef.current[s.symbol] = Date.now();
+    setAiStatus(`${s.symbol}: демо-угода ${sig.type} відкрита (без підключення до біржі — бот навчається)`);
+  }, [updateOpenTrades]);
 
   useEffect(() => {
-    if (!live) return;
-    if (openTradesRef.current.length >= MAX_OPEN_POSITIONS) return;
+    if (slotOccupied) return; // sequential-only: never a second trade while one is still working
 
     for (const s of symbols) {
-      if (openTradesRef.current.some(t => t.symbol === s.symbol)) continue;
       const m = marketsRef.current[s.symbol];
       const sig = m?.signal;
       if (!sig || sig.type === 'WAIT' || !sig.sl || !sig.tp1) continue;
@@ -242,35 +357,47 @@ export default function App() {
       const now = Date.now();
       if (now - (lastTradeAtRef.current[s.symbol] ?? 0) < SYMBOL_TRADE_COOLDOWN_MS) continue;
 
-      const execPrice = m.price ?? sig.entry;
-      if (sig.type === 'LONG' && (sig.sl >= execPrice || sig.tp1 <= execPrice)) continue;
-      if (sig.type === 'SHORT' && (sig.sl <= execPrice || sig.tp1 >= execPrice)) continue;
-
-      const slDist = Math.abs(execPrice - sig.sl);
-      const tpDist = Math.abs(sig.tp1 - execPrice);
+      if (sig.type === 'LONG' && (sig.sl >= sig.entry || sig.tp1 <= sig.entry)) continue;
+      if (sig.type === 'SHORT' && (sig.sl <= sig.entry || sig.tp1 >= sig.entry)) continue;
+      const slDist = Math.abs(sig.entry - sig.sl);
+      const tpDist = Math.abs(sig.tp1 - sig.entry);
       if (tpDist <= slDist) continue;
 
-      lastTradeAtRef.current[s.symbol] = now; // reserve slot before await to avoid double-fire
-      openTradeOnBingx(s, sig, execPrice);
-      break; // one entry per tick, cap + cooldown control the rest
+      if (live) {
+        const price = m.price ?? sig.entry;
+        const driftPct = Math.abs(price - sig.entry) / sig.entry * 100;
+        if (driftPct > LIMIT_ORDER_MAX_DRIFT_PCT) continue; // already ran away, wait for a fresh signal
+        openLimitOrderOnBingx(s, sig);
+      } else {
+        openPaperTrade(s, sig, m.price ?? sig.entry);
+      }
+      break; // one entry attempt per tick, the slot itself enforces sequencing
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markets, live, openTradeOnBingx]);
+  }, [markets, live, slotOccupied, openLimitOrderOnBingx, openPaperTrade]);
 
   const handleCloseTrade = async (tradeId: string) => {
     const trade = openTrades.find(t => t.id === tradeId);
     if (!trade) return;
     try {
-      const pos = positions.find(p => p.symbol === trade.symbol);
-      if (pos) await bingx.closePosition(creds, pos);
+      if (!trade.simulated) {
+        const pos = positions.find(p => p.symbol === trade.symbol);
+        if (pos) await bingx.closePosition(creds, pos);
+      }
       const exitPrice = markets[trade.symbol]?.price ?? trade.entry;
-      const entry = recordClosedTrade(trade, exitPrice);
-      removeOpenTrade(trade.id);
-      setOpenTrades(prev => prev.filter(t => t.id !== tradeId));
-      setJournalEntries(prev => [entry, ...prev]);
+      closeTradeAndJournal(trade, exitPrice);
     } catch (e: any) {
       setAiStatus(`Помилка закриття ${trade.symbol}: ${e?.message ?? e}`);
     }
+  };
+
+  const handleCancelPendingOrder = async () => {
+    const pending = pendingOrderRef.current;
+    if (!pending) return;
+    try {
+      await bingx.cancelOrder(creds, pending.symbol, pending.orderId);
+    } catch { /* best-effort */ }
+    updatePendingOrder(null);
   };
 
   // ── 2-day AI journal review ────────────────────────────────────────────────
@@ -342,8 +469,10 @@ export default function App() {
         </div>
         <div className="flex items-center gap-4 text-right">
           <div>
-            <div className="text-[10px] text-gray-500 uppercase font-bold">Баланс BingX</div>
-            <div className="text-sm font-mono font-bold text-gray-300">{balance ? `$${balance.balance.toLocaleString()}` : '...'}</div>
+            <div className="text-[10px] text-gray-500 uppercase font-bold">{live ? 'Баланс BingX' : 'Демо-баланс'}</div>
+            <div className="text-sm font-mono font-bold text-gray-300">
+              {live ? (balance ? `$${balance.balance.toLocaleString()}` : '...') : `$${paperBalance.toFixed(2)}`}
+            </div>
           </div>
           <button onClick={() => setSettingsOpen(true)} className="w-9 h-9 rounded bg-[#111122] border border-[#22223a] text-gray-400 hover:text-white flex items-center justify-center text-base" title="Налаштування">
             ⚙
@@ -354,7 +483,7 @@ export default function App() {
       <div className="p-4 space-y-4">
         {!hasCreds && (
           <div className="p-4 bg-yellow-950/30 border border-yellow-700/40 rounded-lg text-sm text-yellow-300">
-            Бот не підключений до BingX. Натисніть ⚙ і додайте API ключ та секрет.
+            Бот не підключений до BingX — торгує на демо-рахунку (справжні дані ринку, віртуальний баланс), веде журнал і вчиться. Натисніть ⚙, щоб підключити реальний BingX.
           </div>
         )}
         {hasCreds && !settings.deepseekKey && (
@@ -364,7 +493,7 @@ export default function App() {
         )}
         {hasCreds && !settings.liveTradingEnabled && (
           <div className="p-4 bg-blue-950/30 border border-blue-700/40 rounded-lg text-sm text-blue-300">
-            Реальна торгівля вимкнена — бот тільки рахує сигнали, ордери на BingX не відправляються.
+            Реальна торгівля вимкнена — бот на демо-рахунку, ордери на BingX не відправляються.
           </div>
         )}
 
@@ -378,7 +507,9 @@ export default function App() {
             signal={active.signal}
             pocPrice={activePoc}
             liveTrades={liveTrades}
+            pendingOrder={pendingOrder}
             onCloseTrade={handleCloseTrade}
+            onCancelPendingOrder={handleCancelPendingOrder}
             aiStatus={aiStatus}
             stakeUSDT={stakeUSDT}
             leverage={settings.leverage}

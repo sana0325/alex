@@ -90,6 +90,7 @@ export function JournalView({ entries, stats, reviews, onAnalyzeNow, analyzing, 
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${e.side === 'LONG' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
                     {e.symbol} {e.side}
                   </span>
+                  {e.simulated && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-950 text-blue-400 ml-1">ДЕМО</span>}
                   <span className={`font-bold ${e.pnlUSDT >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {e.pnlUSDT >= 0 ? '+' : ''}{e.pnlUSDT.toFixed(2)}$ ({e.pnlPercent.toFixed(1)}%)
                   </span>

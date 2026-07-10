@@ -146,6 +146,26 @@ export interface OpenTrade {
   setup: string;
   aiReason: string;
   openedAt: number;
+  simulated?: boolean; // paper trade — no real order was ever placed
+}
+
+// A resting maker-only limit entry, waiting to fill on BingX. Occupies the
+// single trade slot just like a filled OpenTrade — the bot won't consider
+// another symbol until this fills or gets cancelled.
+export interface PendingOrder {
+  id: string;
+  orderId: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  price: number;
+  sl: number;
+  tp1: number;
+  quantity: number;
+  stakeUSDT: number;
+  leverage: number;
+  setup: string;
+  aiReason: string;
+  placedAt: number;
 }
 
 export type JournalOutcome = 'WIN' | 'LOSS' | 'BREAKEVEN';
@@ -167,6 +187,7 @@ export interface JournalEntry {
   aiReason: string;
   openedAt: number;
   closedAt: number;
+  simulated?: boolean;
 }
 
 export interface JournalReview {

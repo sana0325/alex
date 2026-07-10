@@ -192,6 +192,17 @@ interface PlaceOrderParams {
   takeProfitPrice?: number;
 }
 
+function slTpParams(p: PlaceOrderParams): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (p.stopLossPrice) {
+    out.stopLoss = JSON.stringify({ type: 'STOP_MARKET', stopPrice: p.stopLossPrice, workingType: 'MARK_PRICE' });
+  }
+  if (p.takeProfitPrice) {
+    out.takeProfit = JSON.stringify({ type: 'TAKE_PROFIT_MARKET', stopPrice: p.takeProfitPrice, workingType: 'MARK_PRICE' });
+  }
+  return out;
+}
+
 export async function placeMarketOrder(creds: BingXCreds, p: PlaceOrderParams): Promise<any> {
   const params: Record<string, string | number | undefined> = {
     symbol: p.symbol,
@@ -199,14 +210,55 @@ export async function placeMarketOrder(creds: BingXCreds, p: PlaceOrderParams): 
     positionSide: p.positionSide,
     type: 'MARKET',
     quantity: p.quantity,
+    ...slTpParams(p),
   };
-  if (p.stopLossPrice) {
-    params.stopLoss = JSON.stringify({ type: 'STOP_MARKET', stopPrice: p.stopLossPrice, workingType: 'MARK_PRICE' });
-  }
-  if (p.takeProfitPrice) {
-    params.takeProfit = JSON.stringify({ type: 'TAKE_PROFIT_MARKET', stopPrice: p.takeProfitPrice, workingType: 'MARK_PRICE' });
-  }
   return request(creds, 'POST', '/openApi/swap/v2/trade/order', params);
+}
+
+interface PlaceLimitOrderParams extends PlaceOrderParams {
+  price: number;
+}
+
+// PostOnly = maker-only entry: it never crosses the book (rejected instead of
+// converting to a taker fill), so every entry pays the lower maker fee and
+// sits right at our own price instead of chasing the spread like a market
+// order would.
+export async function placeLimitOrder(creds: BingXCreds, p: PlaceLimitOrderParams): Promise<{ orderId: string }> {
+  const params: Record<string, string | number | undefined> = {
+    symbol: p.symbol,
+    side: p.side,
+    positionSide: p.positionSide,
+    type: 'LIMIT',
+    quantity: p.quantity,
+    price: p.price,
+    timeInForce: 'PostOnly',
+    ...slTpParams(p),
+  };
+  const data = await request<any>(creds, 'POST', '/openApi/swap/v2/trade/order', params);
+  return { orderId: String(data?.order?.orderId ?? data?.orderId) };
+}
+
+export interface OrderStatus {
+  orderId: string;
+  status: string; // NEW | PENDING | FILLED | CANCELLED | PARTIALLY_FILLED ...
+  avgPrice: number;
+  executedQty: number;
+}
+
+export async function getOrder(creds: BingXCreds, symbol: string, orderId: string): Promise<OrderStatus | null> {
+  const data = await request<any>(creds, 'GET', '/openApi/swap/v2/trade/order', { symbol, orderId });
+  const o = data?.order ?? data;
+  if (!o) return null;
+  return {
+    orderId: String(o.orderId),
+    status: String(o.status ?? 'NEW'),
+    avgPrice: Number(o.avgPrice ?? 0),
+    executedQty: Number(o.executedQty ?? 0),
+  };
+}
+
+export async function cancelOrder(creds: BingXCreds, symbol: string, orderId: string): Promise<void> {
+  await request(creds, 'POST', '/openApi/swap/v2/trade/order/cancel', { symbol, orderId });
 }
 
 export async function closePosition(creds: BingXCreds, position: BingXPosition): Promise<any> {

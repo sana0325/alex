@@ -1,5 +1,5 @@
-import { JournalEntry, JournalOutcome, JournalReview, OpenTrade } from '../types';
-import { JOURNAL_KEY, REVIEWS_KEY, REVIEW_INTERVAL_MS } from '../constants';
+import { JournalEntry, JournalOutcome, JournalReview, OpenTrade, PendingOrder } from '../types';
+import { JOURNAL_KEY, REVIEWS_KEY, REVIEW_INTERVAL_MS, PAPER_START_BALANCE, PAPER_BALANCE_KEY, PENDING_ORDER_KEY } from '../constants';
 
 const OPEN_TRADES_KEY = 'scalp_bot_open_trades_v1';
 
@@ -51,6 +51,7 @@ export function recordClosedTrade(trade: OpenTrade, exitPrice: number, closedAt 
     aiReason: trade.aiReason,
     openedAt: trade.openedAt,
     closedAt,
+    simulated: trade.simulated,
   };
 
   const all = load<JournalEntry>(JOURNAL_KEY);
@@ -136,4 +137,39 @@ export function removeOpenTrade(id: string): OpenTrade | null {
   const [removed] = all.splice(idx, 1);
   save(OPEN_TRADES_KEY, all);
   return removed;
+}
+
+// ── Pending limit order (occupies the one trade slot while waiting to fill) ──
+
+export function getPendingOrder(): PendingOrder | null {
+  try {
+    const raw = localStorage.getItem(PENDING_ORDER_KEY);
+    return raw ? (JSON.parse(raw) as PendingOrder) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function savePendingOrder(order: PendingOrder | null): void {
+  try {
+    if (order) localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(order));
+    else localStorage.removeItem(PENDING_ORDER_KEY);
+  } catch { /* ignore storage errors */ }
+}
+
+// ── Virtual paper-trading balance (used whenever BingX isn't live) ──────────
+
+export function getPaperBalance(): number {
+  try {
+    const raw = localStorage.getItem(PAPER_BALANCE_KEY);
+    return raw ? Number(raw) : PAPER_START_BALANCE;
+  } catch {
+    return PAPER_START_BALANCE;
+  }
+}
+
+export function adjustPaperBalance(deltaUSDT: number): number {
+  const next = getPaperBalance() + deltaUSDT;
+  try { localStorage.setItem(PAPER_BALANCE_KEY, String(next)); } catch { /* ignore */ }
+  return next;
 }

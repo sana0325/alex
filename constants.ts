@@ -42,16 +42,42 @@ export const INDICATOR_GROUPS = {
 // PAXG-USDT (Pax Gold, ~1 token = 1 oz gold) is used as the gold proxy since
 // BingX's public trading API only covers its USDT-M perpetual swap market —
 // there is no scriptable classic XAUUSD forex/metals endpoint on that API.
+// A wide, liquid basket so the bot has many places to look for a setup
+// instead of waiting on a single pair — it rotates the AI scan across all of
+// them and only ever acts on the single best one (see MAX_OPEN_POSITIONS).
 export const DEFAULT_SYMBOLS: TradedSymbol[] = [
   { symbol: 'PAXG-USDT', label: 'GOLD (PAXG)', icon: '🥇', market: 'gold', digits: 2 },
   { symbol: 'BTC-USDT', label: 'BITCOIN', icon: '₿', market: 'crypto', digits: 1 },
   { symbol: 'ETH-USDT', label: 'ETHEREUM', icon: 'Ξ', market: 'crypto', digits: 2 },
   { symbol: 'SOL-USDT', label: 'SOLANA', icon: '◎', market: 'crypto', digits: 3 },
+  { symbol: 'BNB-USDT', label: 'BNB', icon: '🔶', market: 'crypto', digits: 2 },
+  { symbol: 'XRP-USDT', label: 'XRP', icon: '✕', market: 'crypto', digits: 4 },
+  { symbol: 'DOGE-USDT', label: 'DOGECOIN', icon: '🐕', market: 'crypto', digits: 5 },
+  { symbol: 'ADA-USDT', label: 'CARDANO', icon: '🔷', market: 'crypto', digits: 4 },
+  { symbol: 'LINK-USDT', label: 'CHAINLINK', icon: '🔗', market: 'crypto', digits: 3 },
+  { symbol: 'AVAX-USDT', label: 'AVALANCHE', icon: '🔺', market: 'crypto', digits: 2 },
+  { symbol: 'LTC-USDT', label: 'LITECOIN', icon: 'Ł', market: 'crypto', digits: 2 },
+  { symbol: 'TON-USDT', label: 'TON', icon: '💎', market: 'crypto', digits: 3 },
 ];
 
 export const DEFAULT_LEVERAGE = 20;
 
-export const MAX_OPEN_POSITIONS = 2;
+// Strictly sequential: the bot never opens a new trade until the current one
+// (filled position OR a still-pending limit order) is fully done. One thing
+// at a time, however many pairs it's scanning across.
+export const MAX_OPEN_POSITIONS = 1;
+
+// A resting limit entry that hasn't filled within this window, or whose
+// price has drifted too far from the market, gets cancelled so the bot can
+// look elsewhere instead of leaving a stale order hanging over the one slot.
+export const LIMIT_ORDER_TIMEOUT_MS = 3 * 60 * 1000;
+export const LIMIT_ORDER_MAX_DRIFT_PCT = 0.4; // % move away from the limit price
+
+// Starting virtual balance for paper/demo trading when BingX isn't connected
+// or LIVE is switched off — the bot still trades (on paper) and learns.
+export const PAPER_START_BALANCE = 200;
+export const PAPER_BALANCE_KEY = 'scalp_bot_paper_balance_v1';
+export const PENDING_ORDER_KEY = 'scalp_bot_pending_order_v1';
 
 // Stake ladder: how much USDT margin goes into a single trade, tied to the
 // current account balance. Grows as the account grows, resets down if the
