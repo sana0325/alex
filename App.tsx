@@ -134,10 +134,10 @@ export default function App() {
   // ── Hand off trade watching to the native foreground service while backgrounded ──
   // Android throttles the WebView's JS timers as soon as the app isn't
   // visible, so this app's own poll loop effectively "falls asleep" — the
-  // native TradingWatchService keeps making its own signed BingX calls and
-  // fires the close notification independent of the WebView. Only live
-  // (real-money) trades are worth handing off — paper trades only exist in
-  // this JS simulation, nothing to poll on the exchange while away.
+  // native TradingWatchService keeps its own thread running and fires the
+  // close notification independent of the WebView, for a real BingX
+  // position/order (signed calls) or a paper/demo trade (public price
+  // polling) alike — background behavior is the same in both modes.
   useEffect(() => {
     const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
@@ -178,18 +178,24 @@ export default function App() {
                 aiReason: ev.aiReason ?? trade?.aiReason ?? '',
                 openedAt: ev.openedAt ?? trade?.openedAt ?? Date.now(),
                 closedAt: ev.closedAt ?? Date.now(),
+                simulated: ev.simulated ?? trade?.simulated,
               };
               appendPrecomputedJournalEntry(entry);
               removeOpenTrade(ev.tradeId);
               updateOpenTrades(prev => prev.filter(t => t.id !== ev.tradeId));
               updatePendingOrder(null);
               setJournalEntries(prev => [entry, ...prev]);
+              if (entry.simulated) updatePaperBalance(entry.pnlUSDT);
               // Already notified natively in real time — no duplicate notification here.
             }
           }
         });
-      } else if (live) {
-        const trade = openTradesRef.current.find(t => !t.simulated);
+      } else {
+        // Hand the single active trade slot off to the native watcher —
+        // works the same for a real BingX position/order and a paper/demo
+        // trade (the service polls the public price for demo instead of a
+        // signed position lookup).
+        const trade = openTradesRef.current[0];
         const pending = pendingOrderRef.current;
         if (trade) {
           startTradingWatch({
@@ -197,6 +203,7 @@ export default function App() {
             mode: 'position', symbol: trade.symbol, side: trade.side, tradeId: trade.id,
             entry: trade.entry, sl: trade.sl, tp1: trade.tp1, stakeUSDT: trade.stakeUSDT,
             leverage: trade.leverage, setup: trade.setup, aiReason: trade.aiReason, openedAt: trade.openedAt,
+            simulated: !!trade.simulated,
           });
         } else if (pending) {
           startTradingWatch({
@@ -204,12 +211,13 @@ export default function App() {
             mode: 'order', symbol: pending.symbol, side: pending.side, orderId: pending.orderId, tradeId: pending.id,
             entry: pending.price, sl: pending.sl, tp1: pending.tp1, stakeUSDT: pending.stakeUSDT,
             leverage: pending.leverage, setup: pending.setup, aiReason: pending.aiReason, openedAt: pending.placedAt,
+            simulated: false,
           });
         }
       }
     });
     return () => { listenerPromise.then(handle => handle.remove()); };
-  }, [live, updateOpenTrades, updatePendingOrder]);
+  }, [updateOpenTrades, updatePendingOrder, updatePaperBalance]);
 
   // ── Contract precision (fetched once, public endpoint) ──────────────────
   useEffect(() => {

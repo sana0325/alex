@@ -1,10 +1,11 @@
 import { registerPlugin } from '@capacitor/core';
 
 // Bridges to android/.../TradingServicePlugin.java + TradingWatchService.java —
-// a native foreground service that keeps polling BingX for the ONE live trade
-// slot even after Android throttles the WebView's own JS timers in the
-// background. Only meaningful for real (non-simulated) trades: paper trades
-// only exist inside the JS simulation, nothing to poll on the exchange.
+// a native foreground service that keeps watching the ONE open trade slot
+// even after Android throttles the WebView's own JS timers in the
+// background. Works for both a real BingX position/order (signed HTTP
+// calls) and a paper/demo trade (public price polling, same SL/TP math as
+// the JS simulator) — background behavior is the same either way.
 
 export interface TradingWatchPayload {
   apiKey: string;
@@ -22,6 +23,7 @@ export interface TradingWatchPayload {
   setup: string;
   aiReason: string;
   openedAt: number;
+  simulated: boolean;
 }
 
 export interface TradingWatchClosedEvent {
@@ -42,6 +44,7 @@ export interface TradingWatchClosedEvent {
   aiReason?: string;
   openedAt?: number;
   closedAt?: number;
+  simulated?: boolean;
 }
 
 interface TradingWatchPlugin {

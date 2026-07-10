@@ -35,14 +35,14 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
- * Watches ONE open BingX trade (or a still-resting limit order) natively,
- * completely independent of the Capacitor WebView — the WebView's JS timers
- * get throttled/paused by Android as soon as the app is backgrounded, but
- * this Service keeps its own thread and makes its own signed HTTP calls, so
- * the bot doesn't "fall asleep" the moment the screen locks.
- *
- * Only ever watches real (live) trades — paper/demo trades only exist inside
- * the JS simulation and have nothing on the exchange to poll.
+ * Watches ONE open trade (real BingX position, a still-resting limit order,
+ * or a paper/demo trade) natively, completely independent of the Capacitor
+ * WebView — the WebView's JS timers get throttled/paused by Android as soon
+ * as the app is backgrounded, but this Service keeps its own thread and
+ * makes its own HTTP calls, so the bot doesn't "fall asleep" the moment the
+ * screen locks. Demo trades don't exist on any exchange, so for those this
+ * just polls the public mark price (no credentials needed) and compares it
+ * to SL/TP itself, mirroring the JS paper-trading math exactly.
  */
 public class TradingWatchService extends Service {
 
@@ -78,6 +78,7 @@ public class TradingWatchService extends Service {
     private double stakeUSDT;
     private int leverage = 20;
     private long openedAt;
+    private boolean simulated = false;
 
     @Nullable
     @Override
@@ -114,6 +115,7 @@ public class TradingWatchService extends Service {
                 setup = p.optString("setup", "");
                 aiReason = p.optString("aiReason", "");
                 openedAt = p.optLong("openedAt", System.currentTimeMillis());
+                simulated = p.optBoolean("simulated", false);
             } catch (Exception e) {
                 Log.e(TAG, "Bad payload, stopping", e);
                 stopSelf();
@@ -178,24 +180,43 @@ public class TradingWatchService extends Service {
     }
 
     private void checkPosition() throws Exception {
-        JSONArray positions = requestJsonArray("/openApi/swap/v2/user/positions", new String[][]{
-            {"symbol", symbol}
-        });
-        boolean stillOpen = false;
-        if (positions != null) {
-            for (int i = 0; i < positions.length(); i++) {
-                JSONObject p = positions.optJSONObject(i);
-                if (p == null) continue;
-                double amt = Math.abs(p.optDouble("positionAmt", 0));
-                if (amt > 0 && side.equals(p.optString("positionSide"))) {
-                    stillOpen = true;
-                    break;
+        Double exitPrice = null;
+
+        if (simulated) {
+            // No exchange position to poll for a paper trade — just watch the
+            // public price ourselves and apply the same SL/TP crossing logic
+            // the JS paper simulator uses (services/journal.ts / App.tsx).
+            double price = fetchMarkPrice();
+            if (price > 0) {
+                if ("LONG".equals(side)) {
+                    if (price <= sl) exitPrice = sl;
+                    else if (price >= tp1) exitPrice = tp1;
+                } else {
+                    if (price >= sl) exitPrice = sl;
+                    else if (price <= tp1) exitPrice = tp1;
                 }
             }
+        } else {
+            JSONArray positions = requestJsonArray("/openApi/swap/v2/user/positions", new String[][]{
+                {"symbol", symbol}
+            });
+            boolean stillOpen = false;
+            if (positions != null) {
+                for (int i = 0; i < positions.length(); i++) {
+                    JSONObject p = positions.optJSONObject(i);
+                    if (p == null) continue;
+                    double amt = Math.abs(p.optDouble("positionAmt", 0));
+                    if (amt > 0 && side.equals(p.optString("positionSide"))) {
+                        stillOpen = true;
+                        break;
+                    }
+                }
+            }
+            if (!stillOpen) exitPrice = fetchMarkPrice();
         }
-        if (!stillOpen) {
-            double exit = fetchMarkPrice();
-            JSONObject event = buildClosedEvent(exit);
+
+        if (exitPrice != null) {
+            JSONObject event = buildClosedEvent(exitPrice);
             pushEvent(event);
             showCloseNotification(event);
             stopSelf();
@@ -241,6 +262,7 @@ public class TradingWatchService extends Service {
         event.put("aiReason", aiReason);
         event.put("openedAt", openedAt);
         event.put("closedAt", System.currentTimeMillis());
+        event.put("simulated", simulated);
         return event;
     }
 
@@ -357,9 +379,11 @@ public class TradingWatchService extends Service {
     }
 
     private Notification buildServiceNotification() {
+        String text = symbol != null && !symbol.isEmpty() ? symbol : "Відкрита угода";
+        if (simulated) text += " (демо)";
         return new NotificationCompat.Builder(this, SERVICE_CHANNEL)
             .setContentTitle("Бот стежить за угодою")
-            .setContentText(symbol != null && !symbol.isEmpty() ? symbol : "Відкрита позиція на BingX")
+            .setContentText(text)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setOngoing(true)
             .setContentIntent(openAppIntent())
@@ -389,9 +413,10 @@ public class TradingWatchService extends Service {
             double pnlPct = event.optDouble("pnlPercent", 0);
             String outcome = event.optString("outcome", "BREAKEVEN");
             String sign = pnl >= 0 ? "+" : "";
-            String title = "WIN".equals(outcome) ? ("✅ Угода в плюсі: " + symbol)
-                : "LOSS".equals(outcome) ? ("🔻 Угода в мінусі: " + symbol)
-                : ("➖ Угода в нулі: " + symbol);
+            String demoTag = simulated ? " (демо)" : "";
+            String title = "WIN".equals(outcome) ? ("✅ Угода в плюсі" + demoTag + ": " + symbol)
+                : "LOSS".equals(outcome) ? ("🔻 Угода в мінусі" + demoTag + ": " + symbol)
+                : ("➖ Угода в нулі" + demoTag + ": " + symbol);
             String body = side + " " + sign + String.format(Locale.US, "%.2f", pnl) + "$ ("
                 + sign + String.format(Locale.US, "%.1f", pnlPct) + "%)";
 
