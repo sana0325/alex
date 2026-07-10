@@ -1,5 +1,5 @@
 {
-  "name": "CryptoScalp Pro",
-  "description": "Professional intraday crypto trading dashboard with automated swing/scalp analysis, dual-charting, and order book spoof detection.",
+  "name": "Мульти-ринок ШІ Скальп-бот",
+  "description": "Мобільний скальп-бот на ШІ (DeepSeek) для торгівлі золотом, криптою і валютами через BingX з плечем 20x, драбиною ставок і щоденним журналом угод.",
   "requestFramePermissions": []
 }

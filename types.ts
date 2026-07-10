@@ -108,3 +108,82 @@ export interface FreelanceProfile {
   hourlyRate: number;
   currency: Currency;
 }
+
+// ─── Multi-market scalp bot (BingX) types ───────────────────────────────────
+
+export interface TradedSymbol {
+  symbol: string;   // BingX contract symbol, e.g. "BTC-USDT"
+  label: string;
+  icon: string;
+  market: 'crypto' | 'gold';
+  digits: number;
+}
+
+export interface AiSignal {
+  type: 'LONG' | 'SHORT' | 'WAIT';
+  entry: number;
+  sl: number;
+  tp1: number;
+  regime: string;
+  score: number;
+  setup: string;
+  reason: string;
+  resLine?: number;
+  supLine?: number;
+  timestamp: number;
+}
+
+export interface OpenTrade {
+  id: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  entry: number;
+  sl: number;
+  tp1: number;
+  quantity: number;
+  stakeUSDT: number;
+  leverage: number;
+  setup: string;
+  aiReason: string;
+  openedAt: number;
+}
+
+export type JournalOutcome = 'WIN' | 'LOSS' | 'BREAKEVEN';
+
+export interface JournalEntry {
+  id: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  entry: number;
+  exit: number;
+  sl: number;
+  tp1: number;
+  stakeUSDT: number;
+  leverage: number;
+  pnlUSDT: number;
+  pnlPercent: number;
+  outcome: JournalOutcome;
+  setup: string;
+  aiReason: string;
+  openedAt: number;
+  closedAt: number;
+}
+
+export interface JournalReview {
+  id: string;
+  createdAt: number;
+  periodFrom: number;
+  periodTo: number;
+  tradesAnalyzed: number;
+  winRate: number;
+  summary: string;      // AI-written breakdown: what worked, what didn't
+  lessons: string;       // distilled rules fed back into the next trading prompt
+}
+
+export interface TradeBotSettings {
+  bingxApiKey: string;
+  bingxApiSecret: string;
+  deepseekKey: string;
+  leverage: number;
+  liveTradingEnabled: boolean;
+}
