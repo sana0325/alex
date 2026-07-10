@@ -1,6 +1,6 @@
 {
   "appId": "com.goldscalp.signals",
-  "appName": "ШІ Скальп-бот",
+  "appName": "SMC AI Trader",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
@@ -14,9 +14,6 @@
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
       "iconColor": "#FFD700"
-    },
-    "CapacitorHttp": {
-      "enabled": true
     }
   }
 }
