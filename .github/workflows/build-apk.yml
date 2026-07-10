@@ -84,8 +84,7 @@ jobs:
           path: SmcAiTrader.apk
           retention-days: 90
 
-      - name: Create Release (on main branch)
-        if: github.ref == 'refs/heads/main'
+      - name: Create Release (every push — direct download link, no login/zip needed)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
@@ -93,8 +92,10 @@ jobs:
           body: |
             ## 📲 Мульти-ринок ШІ Скальп-бот — Android APK
 
+            Гілка: `${{ github.ref_name }}`
+
             ### Встановлення (перший раз):
-            1. Завантажте **SmcAiTrader.apk** нижче
+            1. Завантажте **SmcAiTrader.apk** нижче (пряме посилання, розпаковувати нічого не треба)
             2. На телефоні: Налаштування → Безпека → **Невідомі джерела** → Увімкнути
             3. Відкрийте завантажений APK → Встановити
             4. Відкрийте додаток → натисніть ⚙ і вкажіть:
@@ -105,13 +106,16 @@ jobs:
             - Просто встановіть новий APK поверх старого — підпис постійний
 
             ### Функції:
-            - 12 пар через BingX (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, LINK, AVAX, LTC, TON + золото PAXG) · M5
+            - 22 пари через BingX (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, LINK, AVAX, LTC,
+              GRAM, DOT, MATIC, SHIB, PEPE, NEAR, APT, ARB, OP, SUI, ATOM + золото PAXG) · M5
             - ШІ SMC-аналіз (DeepSeek), плече 20x, драбина ставок від $2
             - Лімітні ордери-мейкери, послідовна торгівля (одна угода за раз)
             - Журнал угод, авто-розбір раз на 2 дні, демо-режим без підключення до біржі
-            - Push-сповіщення при закритті угоди
+            - Push-сповіщення при вході й виході з угоди — однаково в демо й LIVE
+            - Фонове стеження за відкритою угодою через нативний Android-сервіс
+              (демо і LIVE — однаково)
           files: SmcAiTrader.apk
           draft: false
-          prerelease: false
+          prerelease: ${{ github.ref_name != 'main' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
