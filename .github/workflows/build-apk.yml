@@ -72,16 +72,25 @@ jobs:
         env:
           ANDROID_HOME: ${{ env.ANDROID_SDK_ROOT }}
 
-      - name: Rename APK
+      # Every build gets its own filename (version-stamped) so a new download
+      # never collides/gets silently renamed by the phone next to an older
+      # one, and it's zipped so the browser always treats it as a plain
+      # archive to download-then-extract instead of trying to handle a raw
+      # .apk link itself.
+      - name: Package APK
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-             SmcAiTrader.apk
+          APK_NAME="SmcAiTrader-v${{ github.run_number }}.apk"
+          ZIP_NAME="SmcAiTrader-v${{ github.run_number }}.zip"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          zip "$ZIP_NAME" "$APK_NAME"
+          echo "APK_NAME=$APK_NAME" >> "$GITHUB_ENV"
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: SmcAiTrader-apk
-          path: SmcAiTrader.apk
+          name: SmcAiTrader-apk-v${{ github.run_number }}
+          path: ${{ env.ZIP_NAME }}
           retention-days: 90
 
       - name: Create Release (every push — direct download link, no login/zip needed)
@@ -95,9 +104,11 @@ jobs:
             Гілка: `${{ github.ref_name }}`
 
             ### Встановлення (перший раз):
-            1. Завантажте **SmcAiTrader.apk** нижче (пряме посилання, розпаковувати нічого не треба)
+            1. Завантажте **${{ env.ZIP_NAME }}** нижче й розпакуйте (звичайний zip,
+               файл всередині — унікальна назва з номером версії, не конфліктує
+               зі старими завантаженнями)
             2. На телефоні: Налаштування → Безпека → **Невідомі джерела** → Увімкнути
-            3. Відкрийте завантажений APK → Встановити
+            3. Відкрийте розпакований APK → Встановити
             4. Відкрийте додаток → натисніть ⚙ і вкажіть:
                - BingX API Key / Secret (право торгівлі на Perpetual Futures)
                - свій DeepSeek API ключ
@@ -114,7 +125,7 @@ jobs:
             - Push-сповіщення при вході й виході з угоди — однаково в демо й LIVE
             - Фонове стеження за відкритою угодою через нативний Android-сервіс
               (демо і LIVE — однаково)
-          files: SmcAiTrader.apk
+          files: ${{ env.ZIP_NAME }}
           draft: false
           prerelease: ${{ github.ref_name != 'main' }}
         env:
