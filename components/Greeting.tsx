@@ -12,7 +12,7 @@ const FEATURES = [
 
 export function Greeting({ onEnter }: Props) {
   return (
-    <div className="fixed inset-0 z-[200] bg-[#05050a] flex items-center justify-center p-6 overflow-hidden">
+    <div className="fixed inset-0 z-[200] bg-[#05050a]">
       <style>{`
         @keyframes botFloat { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-10px) rotate(1deg); } }
         @keyframes botBlink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
@@ -34,22 +34,25 @@ export function Greeting({ onEnter }: Props) {
         .glow-dot { animation: glowPulse 2s ease-in-out infinite; }
       `}</style>
 
-      {['💰', '₿', '🥇', '📈', '💎'].map((emoji, i) => (
-        <span
-          key={i}
-          className="float-particle text-2xl select-none pointer-events-none"
-          style={{
-            left: `${10 + i * 18}%`,
-            animationDuration: `${5 + i}s`,
-            animationDelay: `${i * 0.9}s`,
-            ['--drift' as any]: `${(i % 2 === 0 ? 1 : -1) * 20}px`,
-          }}
-        >
-          {emoji}
-        </span>
-      ))}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {['💰', '₿', '🥇', '📈', '💎'].map((emoji, i) => (
+          <span
+            key={i}
+            className="float-particle text-2xl select-none"
+            style={{
+              left: `${10 + i * 18}%`,
+              animationDuration: `${5 + i}s`,
+              animationDelay: `${i * 0.9}s`,
+              ['--drift' as any]: `${(i % 2 === 0 ? 1 : -1) * 20}px`,
+            }}
+          >
+            {emoji}
+          </span>
+        ))}
+      </div>
 
-      <div className="max-w-md w-full relative">
+      <div className="relative h-full overflow-y-auto p-6">
+      <div className="max-w-md w-full mx-auto py-4">
         <div className="bot-wrap flex justify-center mb-2">
           <svg width="120" height="120" viewBox="0 0 120 120">
             <rect x="30" y="10" width="8" height="14" rx="4" fill="#3b82f6" />
@@ -115,6 +118,7 @@ export function Greeting({ onEnter }: Props) {
         >
           Погнали заробляти
         </button>
+      </div>
       </div>
     </div>
   );
