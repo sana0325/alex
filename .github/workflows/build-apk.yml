@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main, claude/android-smc-trading-app-z0jru9 ]
+    branches: [ main, 'claude/**' ]
   workflow_dispatch:
 
 jobs:
@@ -89,26 +89,27 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.run_number }}
-          name: "SMC AI Trader v${{ github.run_number }}"
+          name: "ШІ Скальп-бот v${{ github.run_number }}"
           body: |
-            ## 📲 SMC AI Trader — Android APK
+            ## 📲 Мульти-ринок ШІ Скальп-бот — Android APK
 
             ### Встановлення (перший раз):
             1. Завантажте **SmcAiTrader.apk** нижче
             2. На телефоні: Налаштування → Безпека → **Невідомі джерела** → Увімкнути
             3. Відкрийте завантажений APK → Встановити
             4. Відкрийте додаток → натисніть ⚙ і вкажіть:
-               - адресу MT5-бриджа (IP:порт комп'ютера з MT5, див. `bridge/README.md`)
+               - BingX API Key / Secret (право торгівлі на Perpetual Futures)
                - свій DeepSeek API ключ
 
             ### Оновлення (якщо вже встановлено):
             - Просто встановіть новий APK поверх старого — підпис постійний
 
             ### Функції:
-            - Мультивалютний скан (XAUUSD, EURUSD, GBPUSD, USDJPY) · M5
-            - ШІ SMC-аналіз (DeepSeek) з адаптивними playbook під режим ринку
-            - Автовиконання угод через MT5-міст (`bridge/mt5_bridge.py`)
-            - Volume Profile, режими SAFE / AGGRESSIVE, часткове закриття + БУ
+            - 12 пар через BingX (BTC, ETH, SOL, BNB, XRP, DOGE, ADA, LINK, AVAX, LTC, TON + золото PAXG) · M5
+            - ШІ SMC-аналіз (DeepSeek), плече 20x, драбина ставок від $2
+            - Лімітні ордери-мейкери, послідовна торгівля (одна угода за раз)
+            - Журнал угод, авто-розбір раз на 2 дні, демо-режим без підключення до біржі
+            - Push-сповіщення при закритті угоди
           files: SmcAiTrader.apk
           draft: false
           prerelease: false
