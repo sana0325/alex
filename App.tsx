@@ -151,11 +151,14 @@ export default function App() {
         // one tick instead of leaving an old error status sitting on screen.
         isAiLoadingRef.current = false;
         lastAiCallRef.current = 0;
-        setAiStatus('Відновлення після фону...');
         pollNowRef.current();
 
         stopTradingWatch();
         drainTradingWatchEvents().then(events => {
+          let opened = 0;
+          let closed = 0;
+          let closedPnl = 0;
+
           for (const ev of events) {
             if (ev.type === 'cancelled') {
               if (pendingOrderRef.current && pendingOrderRef.current.id === ev.tradeId) {
@@ -176,6 +179,7 @@ export default function App() {
                 };
                 addOpenTrade(trade);
                 updateOpenTrades(prev => (prev.some(t => t.id === trade.id) ? prev : [...prev, trade]));
+                opened++;
               } else {
                 // Live limit order placed natively, still resting.
                 const pending: PendingOrder = {
@@ -185,6 +189,7 @@ export default function App() {
                   setup: ev.setup ?? '', aiReason: ev.aiReason ?? '', placedAt: ev.placedAt ?? Date.now(),
                 };
                 updatePendingOrder(pending);
+                opened++;
               }
               continue;
             }
@@ -232,7 +237,16 @@ export default function App() {
               setJournalEntries(prev => [entry, ...prev]);
               if (entry.simulated) updatePaperBalance(entry.pnlUSDT);
               // Already notified natively in real time — no duplicate notification here.
+              closed++;
+              closedPnl += entry.pnlUSDT;
             }
+          }
+
+          if (closed > 0) {
+            const sign = closedPnl >= 0 ? '+' : '';
+            setAiStatus(`Поки був у фоні: закрито угод — ${closed} (${sign}${closedPnl.toFixed(2)}$)${opened > closed ? `, відкрито — ${opened}` : ''}`);
+          } else if (opened > 0) {
+            setAiStatus(`Поки був у фоні: відкрито угод — ${opened}`);
           }
         });
       } else {
