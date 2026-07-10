@@ -4,7 +4,7 @@ import { TradeBotSettings, TradedSymbol, Candle, AiSignal, OpenTrade, PendingOrd
 import {
   DEFAULT_SYMBOLS, DEFAULT_LEVERAGE, MAX_OPEN_POSITIONS, TRADE_SETTINGS_KEY,
   GREETING_SEEN_KEY, REVIEW_INTERVAL_MS, LIMIT_ORDER_TIMEOUT_MS, LIMIT_ORDER_MAX_DRIFT_PCT,
-  getStakeUSDT,
+  STAKE_LADDER, getStakeUSDT,
 } from './constants';
 import * as bingx from './services/bingx';
 import { fetchTradingSignal, generateJournalReview } from './services/aiTrader';
@@ -131,13 +131,17 @@ export default function App() {
 
   useEffect(() => { ensureNotificationPermission(); }, []);
 
-  // ── Hand off trade watching to the native foreground service while backgrounded ──
+  // ── Hand the whole trading brain off to the native service while backgrounded ──
   // Android throttles the WebView's JS timers as soon as the app isn't
-  // visible, so this app's own poll loop effectively "falls asleep" — the
-  // native TradingWatchService keeps its own thread running and fires the
-  // close notification independent of the WebView, for a real BingX
-  // position/order (signed calls) or a paper/demo trade (public price
-  // polling) alike — background behavior is the same in both modes.
+  // visible, so this app's own scan/entry/watch loop effectively "falls
+  // asleep". TradingWatchService now runs the FULL loop natively — scan
+  // symbols, ask DeepSeek, validate, open (real limit order or a simulated
+  // demo fill), watch through to close, then scan again — for as long as
+  // the service runs, so the bot keeps trading in the background too, not
+  // just watching something already open. Every backgrounding event sends a
+  // fresh snapshot of settings/symbols/ladder/learning-context; every
+  // resume stops the service and replays whatever it did while away into
+  // the same journal/state.
   useEffect(() => {
     const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
@@ -159,6 +163,47 @@ export default function App() {
               }
               continue;
             }
+
+            if (ev.type === 'entry') {
+              if (ev.filled) {
+                // Demo trade opened (and instantly filled) natively.
+                const trade: OpenTrade = {
+                  id: ev.tradeId, symbol: ev.symbol, side: ev.side ?? 'LONG',
+                  entry: ev.entry ?? 0, sl: ev.sl ?? 0, tp1: ev.tp1 ?? 0, quantity: 0,
+                  stakeUSDT: ev.stakeUSDT ?? 0, leverage: ev.leverage ?? settingsRef.current.leverage,
+                  setup: ev.setup ?? '', aiReason: ev.aiReason ?? '', openedAt: ev.openedAt ?? Date.now(),
+                  simulated: ev.simulated ?? true,
+                };
+                addOpenTrade(trade);
+                updateOpenTrades(prev => (prev.some(t => t.id === trade.id) ? prev : [...prev, trade]));
+              } else {
+                // Live limit order placed natively, still resting.
+                const pending: PendingOrder = {
+                  id: ev.tradeId, orderId: ev.orderId ?? '', symbol: ev.symbol, side: ev.side ?? 'LONG',
+                  price: ev.price ?? 0, sl: ev.sl ?? 0, tp1: ev.tp1 ?? 0, quantity: 0,
+                  stakeUSDT: ev.stakeUSDT ?? 0, leverage: ev.leverage ?? settingsRef.current.leverage,
+                  setup: ev.setup ?? '', aiReason: ev.aiReason ?? '', placedAt: ev.placedAt ?? Date.now(),
+                };
+                updatePendingOrder(pending);
+              }
+              continue;
+            }
+
+            if (ev.type === 'filled') {
+              // A live limit order placed natively has now filled into a position.
+              const trade: OpenTrade = {
+                id: ev.tradeId, symbol: ev.symbol, side: ev.side ?? 'LONG',
+                entry: ev.entry ?? 0, sl: ev.sl ?? 0, tp1: ev.tp1 ?? 0, quantity: 0,
+                stakeUSDT: ev.stakeUSDT ?? 0, leverage: ev.leverage ?? settingsRef.current.leverage,
+                setup: ev.setup ?? '', aiReason: ev.aiReason ?? '', openedAt: ev.openedAt ?? Date.now(),
+                simulated: false,
+              };
+              updatePendingOrder(null);
+              addOpenTrade(trade);
+              updateOpenTrades(prev => (prev.some(t => t.id === trade.id) ? prev : [...prev, trade]));
+              continue;
+            }
+
             if (ev.type === 'closed' && ev.entry !== undefined && ev.exit !== undefined) {
               const trade = openTradesRef.current.find(t => t.id === ev.tradeId);
               const entry: JournalEntry = {
@@ -191,29 +236,40 @@ export default function App() {
           }
         });
       } else {
-        // Hand the single active trade slot off to the native watcher —
-        // works the same for a real BingX position/order and a paper/demo
-        // trade (the service polls the public price for demo instead of a
-        // signed position lookup).
+        // Hand the whole trading brain to the native service — full scan +
+        // entry + watch loop, not just watching something already open.
+        if (!settingsRef.current.deepseekKey) return; // nothing useful to do without AI
+
+        const s = settingsRef.current;
         const trade = openTradesRef.current[0];
         const pending = pendingOrderRef.current;
-        if (trade) {
-          startTradingWatch({
-            apiKey: settingsRef.current.bingxApiKey, apiSecret: settingsRef.current.bingxApiSecret,
-            mode: 'position', symbol: trade.symbol, side: trade.side, tradeId: trade.id,
-            entry: trade.entry, sl: trade.sl, tp1: trade.tp1, stakeUSDT: trade.stakeUSDT,
-            leverage: trade.leverage, setup: trade.setup, aiReason: trade.aiReason, openedAt: trade.openedAt,
-            simulated: !!trade.simulated,
-          });
-        } else if (pending) {
-          startTradingWatch({
-            apiKey: settingsRef.current.bingxApiKey, apiSecret: settingsRef.current.bingxApiSecret,
-            mode: 'order', symbol: pending.symbol, side: pending.side, orderId: pending.orderId, tradeId: pending.id,
-            entry: pending.price, sl: pending.sl, tp1: pending.tp1, stakeUSDT: pending.stakeUSDT,
-            leverage: pending.leverage, setup: pending.setup, aiReason: pending.aiReason, openedAt: pending.placedAt,
-            simulated: false,
-          });
-        }
+
+        startTradingWatch({
+          apiKey: s.bingxApiKey,
+          apiSecret: s.bingxApiSecret,
+          deepseekKey: s.deepseekKey,
+          leverage: s.leverage,
+          live: !!(s.bingxApiKey && s.bingxApiSecret && s.liveTradingEnabled),
+          symbols: symbols.map(sym => ({ symbol: sym.symbol, market: sym.market })),
+          stakeLadder: STAKE_LADDER.map(t => ({
+            maxBalance: Number.isFinite(t.maxBalance) ? t.maxBalance : 1e15,
+            stakeUSDT: t.stakeUSDT,
+          })),
+          paperBalance: paperBalanceRef.current,
+          lessons: latestLessons(),
+          statsJson: JSON.stringify(computeStats(journalRef.current)),
+          activeTrade: trade ? {
+            tradeId: trade.id, symbol: trade.symbol, side: trade.side, entry: trade.entry,
+            sl: trade.sl, tp1: trade.tp1, stakeUSDT: trade.stakeUSDT, leverage: trade.leverage,
+            setup: trade.setup, aiReason: trade.aiReason, openedAt: trade.openedAt,
+            simulated: !!trade.simulated, quantity: trade.quantity,
+          } : undefined,
+          activePending: !trade && pending ? {
+            tradeId: pending.id, orderId: pending.orderId, symbol: pending.symbol, side: pending.side,
+            price: pending.price, sl: pending.sl, tp1: pending.tp1, stakeUSDT: pending.stakeUSDT,
+            leverage: pending.leverage, setup: pending.setup, aiReason: pending.aiReason, placedAt: pending.placedAt,
+          } : undefined,
+        });
       }
     });
     return () => { listenerPromise.then(handle => handle.remove()); };

@@ -1,20 +1,28 @@
 import { registerPlugin } from '@capacitor/core';
 
 // Bridges to android/.../TradingServicePlugin.java + TradingWatchService.java —
-// a native foreground service that keeps watching the ONE open trade slot
-// even after Android throttles the WebView's own JS timers in the
-// background. Works for both a real BingX position/order (signed HTTP
-// calls) and a paper/demo trade (public price polling, same SL/TP math as
-// the JS simulator) — background behavior is the same either way.
+// the bot's whole trading brain (scan symbols -> ask DeepSeek -> validate ->
+// open -> watch -> close -> scan again), running natively so it keeps going
+// whether the app is open, backgrounded, or the screen is locked. The
+// WebView hands this off on backgrounding (with a snapshot of settings,
+// symbols, stake ladder, learning context, and whatever's already open) and
+// reclaims it — stopping the service — whenever the app is opened, draining
+// whatever happened while away into the same journal.
 
-export interface TradingWatchPayload {
-  apiKey: string;
-  apiSecret: string;
-  mode: 'order' | 'position';
+export interface TradingWatchSymbol {
+  symbol: string;
+  market: 'crypto' | 'gold';
+}
+
+export interface TradingWatchStakeTier {
+  maxBalance: number;
+  stakeUSDT: number;
+}
+
+export interface TradingWatchActiveTrade {
+  tradeId: string;
   symbol: string;
   side: 'LONG' | 'SHORT';
-  orderId?: string;
-  tradeId: string;
   entry: number;
   sl: number;
   tp1: number;
@@ -24,13 +32,47 @@ export interface TradingWatchPayload {
   aiReason: string;
   openedAt: number;
   simulated: boolean;
+  quantity?: number;
 }
 
-export interface TradingWatchClosedEvent {
-  type: 'closed' | 'cancelled';
+export interface TradingWatchActivePending {
   tradeId: string;
+  orderId: string;
+  symbol: string;
+  side: 'LONG' | 'SHORT';
+  price: number;
+  sl: number;
+  tp1: number;
+  stakeUSDT: number;
+  leverage: number;
+  setup: string;
+  aiReason: string;
+  placedAt: number;
+}
+
+export interface TradingWatchPayload {
+  apiKey: string;
+  apiSecret: string;
+  deepseekKey: string;
+  leverage: number;
+  live: boolean;
+  symbols: TradingWatchSymbol[];
+  stakeLadder: TradingWatchStakeTier[];
+  paperBalance: number;
+  lessons: string;
+  statsJson: string;
+  activeTrade?: TradingWatchActiveTrade;
+  activePending?: TradingWatchActivePending;
+}
+
+export interface TradingWatchEvent {
+  type: 'entry' | 'filled' | 'closed' | 'cancelled';
+  filled?: boolean; // for type "entry": true = demo instant fill, false = live resting limit order
+  tradeId: string;
+  orderId?: string;
   symbol: string;
   side?: 'LONG' | 'SHORT';
+  price?: number;   // "entry" (unfilled) uses this for the limit price
   entry?: number;
   exit?: number;
   sl?: number;
@@ -43,6 +85,7 @@ export interface TradingWatchClosedEvent {
   setup?: string;
   aiReason?: string;
   openedAt?: number;
+  placedAt?: number;
   closedAt?: number;
   simulated?: boolean;
 }
@@ -71,7 +114,7 @@ export async function stopTradingWatch(): Promise<void> {
   }
 }
 
-export async function drainTradingWatchEvents(): Promise<TradingWatchClosedEvent[]> {
+export async function drainTradingWatchEvents(): Promise<TradingWatchEvent[]> {
   try {
     const res = await TradingWatch.pollClosedEvents();
     const parsed = JSON.parse(res.eventsJson || '[]');
