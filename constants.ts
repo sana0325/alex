@@ -57,7 +57,17 @@ export const DEFAULT_SYMBOLS: TradedSymbol[] = [
   { symbol: 'LINK-USDT', label: 'CHAINLINK', icon: '🔗', market: 'crypto', digits: 3 },
   { symbol: 'AVAX-USDT', label: 'AVALANCHE', icon: '🔺', market: 'crypto', digits: 2 },
   { symbol: 'LTC-USDT', label: 'LITECOIN', icon: 'Ł', market: 'crypto', digits: 2 },
-  { symbol: 'TON-USDT', label: 'TON', icon: '💎', market: 'crypto', digits: 3 },
+  { symbol: 'GRAM-USDT', label: 'GRAM', icon: '💎', market: 'crypto', digits: 5 },
+  { symbol: 'DOT-USDT', label: 'POLKADOT', icon: '⚪', market: 'crypto', digits: 3 },
+  { symbol: 'MATIC-USDT', label: 'POLYGON', icon: '🟣', market: 'crypto', digits: 4 },
+  { symbol: 'SHIB-USDT', label: 'SHIBA INU', icon: '🐶', market: 'crypto', digits: 6 },
+  { symbol: 'PEPE-USDT', label: 'PEPE', icon: '🐸', market: 'crypto', digits: 8 },
+  { symbol: 'NEAR-USDT', label: 'NEAR', icon: '🌐', market: 'crypto', digits: 3 },
+  { symbol: 'APT-USDT', label: 'APTOS', icon: '🅰️', market: 'crypto', digits: 3 },
+  { symbol: 'ARB-USDT', label: 'ARBITRUM', icon: '🔵', market: 'crypto', digits: 4 },
+  { symbol: 'OP-USDT', label: 'OPTIMISM', icon: '🔴', market: 'crypto', digits: 4 },
+  { symbol: 'SUI-USDT', label: 'SUI', icon: '💧', market: 'crypto', digits: 3 },
+  { symbol: 'ATOM-USDT', label: 'COSMOS', icon: '⚛️', market: 'crypto', digits: 3 },
 ];
 
 export const DEFAULT_LEVERAGE = 20;
