@@ -77,6 +77,21 @@ class BingXError extends Error {
   }
 }
 
+const FETCH_TIMEOUT_MS = 15000;
+
+// A request suspended by Android's background JS throttling (screen locked,
+// app backgrounded) can otherwise hang indefinitely instead of failing —
+// this makes it fail fast so the app recovers quickly once resumed.
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function request<T = any>(
   creds: BingXCreds | null,
   method: 'GET' | 'POST',
@@ -102,7 +117,7 @@ async function request<T = any>(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (signed && creds?.apiKey) headers['X-BX-APIKEY'] = creds.apiKey;
 
-  const res = await fetch(url, { method, headers });
+  const res = await fetchWithTimeout(url, { method, headers });
   const json = await res.json().catch(() => null);
 
   if (!res.ok || !json || (json.code !== undefined && json.code !== 0)) {

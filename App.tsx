@@ -85,6 +85,7 @@ export default function App() {
   const journalRef = useRef(journalEntries);
   const settingsRef = useRef(settings);
   const balanceRef = useRef(balance);
+  const pollNowRef = useRef<() => void>(() => {});
 
   useEffect(() => { marketsRef.current = markets; }, [markets]);
   useEffect(() => { journalRef.current = journalEntries; }, [journalEntries]);
@@ -140,6 +141,15 @@ export default function App() {
   useEffect(() => {
     const listenerPromise = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
+        // The WebView's own timers were throttled/paused while backgrounded —
+        // any in-flight request may have hung rather than failed, and the
+        // scan cooldown may now be stale. Clear both so the app recovers in
+        // one tick instead of leaving an old error status sitting on screen.
+        isAiLoadingRef.current = false;
+        lastAiCallRef.current = 0;
+        setAiStatus('Відновлення після фону...');
+        pollNowRef.current();
+
         stopTradingWatch();
         drainTradingWatchEvents().then(events => {
           for (const ev of events) {
@@ -326,6 +336,7 @@ export default function App() {
       }
     };
 
+    pollNowRef.current = () => { poll(); };
     poll();
     const id = setInterval(poll, POLL_MS);
     return () => { stopped = true; clearInterval(id); };

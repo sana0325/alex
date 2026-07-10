@@ -2,21 +2,34 @@ import { AiSignal, Candle, JournalEntry, JournalReview } from '../types';
 import { JournalStats } from './journal';
 
 const DEEPSEEK_ENDPOINT = 'https://api.deepseek.com/chat/completions';
+const FETCH_TIMEOUT_MS = 20000;
 
+// Without this, a request suspended mid-flight by Android's background JS
+// throttling (screen locked / app backgrounded) can hang indefinitely rather
+// than failing — that left a stale "Помилка ШІ-аналізу" status sitting on
+// screen long after the app was reopened.
 async function callDeepSeek(apiKey: string, systemPrompt: string, userPrompt: string): Promise<any> {
-  const response = await fetch(DEEPSEEK_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.35,
-    }),
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(DEEPSEEK_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.35,
+      }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!response.ok) throw new Error(`DeepSeek HTTP ${response.status}`);
   const result = await response.json();
   return JSON.parse(result.choices[0].message.content);
