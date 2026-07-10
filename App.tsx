@@ -14,7 +14,7 @@ import {
   lastReviewAt, latestLessons, recordClosedTrade, getOpenTrades, addOpenTrade, removeOpenTrade,
   getPendingOrder, savePendingOrder, getPaperBalance, adjustPaperBalance, appendPrecomputedJournalEntry,
 } from './services/journal';
-import { ensureNotificationPermission, notifyTradeClosed } from './services/notifications';
+import { ensureNotificationPermission, notifyTradeClosed, notifyTradeOpened } from './services/notifications';
 import { startTradingWatch, stopTradingWatch, drainTradingWatchEvents } from './services/tradingWatch';
 import { Greeting } from './components/Greeting';
 import { TradingView, LiveTrade } from './components/TradingView';
@@ -264,6 +264,7 @@ export default function App() {
         updateOpenTrades(prev => [...prev, trade]);
         updatePendingOrder(null);
         setAiStatus(`${pending.symbol}: лімітний ордер виконано, позиція відкрита`);
+        notifyTradeOpened(pending.symbol, pending.side, false);
         return;
       }
       if (status?.status === 'CANCELLED' || status?.status === 'REJECTED' || status?.status === 'EXPIRED') {
@@ -428,6 +429,7 @@ export default function App() {
     updateOpenTrades(prev => [...prev, trade]);
     lastTradeAtRef.current[s.symbol] = Date.now();
     setAiStatus(`${s.symbol}: демо-угода ${sig.type} відкрита (без підключення до біржі — бот навчається)`);
+    notifyTradeOpened(s.symbol, sig.type as 'LONG' | 'SHORT', true);
   }, [updateOpenTrades]);
 
   useEffect(() => {

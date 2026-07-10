@@ -170,6 +170,7 @@ public class TradingWatchService extends Service {
             double avg = order.optDouble("avgPrice", entry);
             if (avg > 0) entry = avg;
             mode = "position"; // keep watching the resulting position, no need to stop
+            showOpenedNotification();
         } else if ("CANCELLED".equals(status) || "REJECTED".equals(status) || "EXPIRED".equals(status)) {
             pushEvent(buildCancelledEvent());
             stopSelf();
@@ -363,6 +364,23 @@ public class TradingWatchService extends Service {
             .setOngoing(true)
             .setContentIntent(openAppIntent())
             .build();
+    }
+
+    private void showOpenedNotification() {
+        try {
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, ALERT_CHANNEL)
+                .setContentTitle("📡 Сигнал " + side + ": " + symbol)
+                .setContentText("Угода відкрита (LIVE режим)")
+                .setSmallIcon(android.R.drawable.stat_sys_download)
+                .setAutoCancel(true)
+                .setContentIntent(openAppIntent())
+                .setPriority(NotificationCompat.PRIORITY_HIGH);
+
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify((int) (System.currentTimeMillis() % Integer.MAX_VALUE), builder.build());
+        } catch (Exception e) {
+            Log.e(TAG, "showOpenedNotification failed", e);
+        }
     }
 
     private void showCloseNotification(JSONObject event) {
