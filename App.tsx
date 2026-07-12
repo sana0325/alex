@@ -46,8 +46,8 @@ function persistSettings(s: TradeBotSettings) {
 }
 
 const POLL_MS = 8000;
-const AI_SCAN_COOLDOWN_MS = 20000;
-const SYMBOL_TRADE_COOLDOWN_MS = 5 * 60 * 1000;
+const AI_SCAN_COOLDOWN_MS = 12000;
+const SYMBOL_TRADE_COOLDOWN_MS = 2 * 60 * 1000;
 const symbols: TradedSymbol[] = DEFAULT_SYMBOLS;
 
 export default function App() {

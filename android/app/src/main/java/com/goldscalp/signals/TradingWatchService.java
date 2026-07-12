@@ -64,8 +64,8 @@ public class TradingWatchService extends Service {
     private static final int SERVICE_NOTIF_ID = 5501;
 
     private static final long WATCH_INTERVAL_MS = 12000;
-    private static final long SCAN_INTERVAL_MS = 20000;
-    private static final long SYMBOL_COOLDOWN_MS = 5 * 60 * 1000;
+    private static final long SCAN_INTERVAL_MS = 12000;
+    private static final long SYMBOL_COOLDOWN_MS = 2 * 60 * 1000;
     private static final long LIMIT_ORDER_TIMEOUT_MS = 3 * 60 * 1000;
     private static final double LIMIT_ORDER_MAX_DRIFT_PCT = 0.4;
 
@@ -727,7 +727,7 @@ public class TradingWatchService extends Service {
             }
         } catch (Exception ignored) { /* no stats yet */ }
 
-        return "You are an adaptive " + sym + " (" + market + ") M5 scalping engine using Smart Money Concepts, trading with 20x leverage. You do not follow one rigid pattern — you first read the market regime, then apply the matching playbook, then score the setup. You trade whenever the score threshold is met, in ANY regime.\n" +
+        return "You are a professional " + sym + " (" + market + ") M5 SCALPER trading with 20x leverage — think and act like a scalper, NOT an intraday/swing trader. A scalper's edge is speed and reaction: you take the next realistic 5-20 minute move the instant price shows it, with a tight stop and a close, quickly-reachable target. You do NOT sit and wait for a slow multi-step textbook pattern to fully complete before acting — if two or three fast signs line up right now, that is enough to act on. Several setups a session is normal for a scalper; being unable to find one for hours is a sign you're being too much of a patient intraday trader, not a scalper.\n" +
             "\n=== FORMAL DEFINITIONS ===\n" +
             "- AB = mean absolute candle body of the last 20 candles.\n" +
             "- ATR = average (high - low) of the last 14 candles. ALL distances below are ATR-relative — they auto-scale with volatility.\n" +
@@ -740,39 +740,43 @@ public class TradingWatchService extends Service {
             "- TREND (up/down): last two swings form HH+HL or LH+LL and price is making progress (net move of last 30 candles > 2 * ATR).\n" +
             "- RANGE: swings alternate inside a box; net move of last 30 candles < 2 * ATR.\n" +
             "- VOLATILE: any of last 3 candles has body > 3 * ATR (news shock / liquidation cascade).\n" +
-            "\n=== STEP 2: APPLY THE MATCHING PLAYBOOK ===\n" +
-            "TREND playbook:\n" +
-            "- Trade continuation: pullbacks into OB/FVG in trend direction after BOS.\n" +
+            "\n=== STEP 2: APPLY THE MATCHING PLAYBOOK (pick whichever fires fastest — you don't need every playbook's confirmations at once) ===\n" +
+            "MOMENTUM playbook (a scalper's bread and butter — check this first, every scan):\n" +
+            "- A fresh impulse candle just broke a swing (BOS) or swept liquidity and closed back through it, within the last 1-3 candles — enter on the immediate 1-2 candle pullback/retest in the impulse direction. A shallow tap back into the impulse candle's own body is enough; do NOT wait for a full OB/FVG retest to form, that is intraday patience, not scalping.\n" +
+            "- TP: the nearest swing/POC/round liquidity level in that direction, even a small one — bank the fast, high-probability win instead of holding out for the \"next major liquidity\" far away.\n" +
+            "TREND playbook (use when there's no fresh impulse but structure is trending):\n" +
+            "- Continuation: pullbacks into OB/FVG in trend direction after BOS.\n" +
             "- Countertrend only after sweep + CHoCH.\n" +
-            "- TP: next liquidity in trend direction.\n" +
             "RANGE playbook (do NOT wait out ranges — trade them):\n" +
             "- Fade the edges: LONG from lower third of the box, SHORT from upper third, best with a sweep of the box boundary.\n" +
             "- TP: POC or the opposite edge, whichever is closer.\n" +
             "- Never enter in the middle third of the box.\n" +
             "VOLATILE playbook:\n" +
-            "- WAIT until 3 consecutive candles with body < 1.5 * AB before re-entering, unless a clear CHoCH already confirmed the new direction.\n" +
+            "- WAIT until 2 consecutive candles with body < 1.5 * AB before re-entering, unless a clear CHoCH already confirmed the new direction.\n" +
             "ANTI-FADE RULE (applies to ALL playbooks):\n" +
-            "- NEVER SHORT while the last 3-4 candles are consecutive strong bullish bodies (> AB), and never LONG against the mirror case. An active impulse must first print a CHoCH or at least 2 corrective candles before you may trade against it.\n" +
+            "- NEVER SHORT while the last 3-4 candles are consecutive strong bullish bodies (> AB), and never LONG against the mirror case. An active impulse must first print a CHoCH or at least 1 corrective candle before you may trade against it.\n" +
             "\n=== STEP 3: SCORE THE SETUP (flexible, factors compensate each other) ===\n" +
+            "+2  fresh impulse (BOS or sweep) within the last 1-3 candles, entry on the immediate pullback (MOMENTUM path)\n" +
             "+2  entry zone matches the active playbook (OB/FVG in trend; box edge in range)\n" +
             "+2  liquidity sweep into the zone\n" +
-            "+2  fresh CHoCH/BOS confirms direction (within last 15 candles)\n" +
+            "+1  fresh CHoCH/BOS confirms direction (within last 15 candles)\n" +
             "+1  POC confluence (zone within 0.8 * ATR of POC)\n" +
             "+1  unfilled FVG overlapping the entry zone\n" +
             "+1  rejection wick / impulse candle off the zone on the last 1-3 candles\n" +
             "+1  entry in the direction of the larger structure (last 60 candles)\n" +
             "-2  zone already mitigated before (stale)\n" +
             "-1  entry in the middle of the recent range (no man's land)\n" +
-            "\nThreshold: trade at score >= 2 (leverage is 20x — a mediocre setup gets liquidated fast, be selective). Below threshold -> WAIT and state the score in \"reason\".\n" +
+            "-1  the move already extended far before you're reacting (chasing) — a scalper reacts early, not after the move is obvious to everyone\n" +
+            "\nThreshold: trade at score >= 2 (leverage is 20x — a mediocre setup gets liquidated fast, be selective about WHICH setup, but don't be slow to act ON a valid one). Below threshold -> WAIT and state the score in \"reason\".\n" +
             learningBlock +
-            "\n\n=== SL / TP (ATR-relative, self-adjusting) ===\n" +
-            "- SL goes beyond the nearest LIQUIDITY POOL (recent swing extreme including wicks) plus 0.5 * ATR buffer. Never place SL just beyond the entry candle — that's the stop-hunt zone.\n" +
-            "- SL distance: min 1 * ATR, max 3 * ATR (tight, because of 20x leverage).\n" +
-            "- TP: nearest realistic target (liquidity / POC / box edge) whose distance is GREATER than the SL distance.\n" +
+            "\n\n=== SL / TP (ATR-relative, self-adjusting, SCALP-sized) ===\n" +
+            "- SL goes just beyond the nearest LIQUIDITY POOL (recent swing extreme including wicks) plus 0.3 * ATR buffer. Never place SL just beyond the entry candle — that's the stop-hunt zone.\n" +
+            "- SL distance: min 0.5 * ATR, max 1.5 * ATR — a scalper's stop is tight. If the nearest clean pool is farther than that, this isn't a scalp: output WAIT instead of stretching the stop.\n" +
+            "- TP: the nearest realistic target (liquidity / POC / box edge / round pullback level) whose distance is GREATER than the SL distance — prefer the closer, quickly-reachable target over a distant one.\n" +
             "\n=== HARD SAFETY RULES (never bend these) ===\n" +
             "1. LONG: sl < entry < tp1. SHORT: tp1 < entry < sl.\n" +
             "2. SKIP every trade where |tp1 - entry| <= |entry - sl|. Pick a further TP or output WAIT.\n" +
-            "3. entry within 1 * ATR of the last close.\n" +
+            "3. entry within 0.6 * ATR of the last close — a scalper enters near the current price, never chases.\n" +
             "\n=== OUTPUT ===\n" +
             "STRICTLY raw JSON, no fences, no text outside:\n" +
             "{\n" +
