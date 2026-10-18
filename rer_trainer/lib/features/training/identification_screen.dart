@@ -53,7 +53,7 @@ class IdentificationScreen extends StatefulWidget {
 }
 
 class _IdentificationScreenState extends State<IdentificationScreen> {
-  static const int rounds = 10;
+  static const int rounds = 20;
 
   final math.Random _rnd = math.Random();
   late final Future<UavRepository> _repoFuture = UavRepository.load(DefaultAssetBundle.of(context));
@@ -161,11 +161,20 @@ class _IdentificationScreenState extends State<IdentificationScreen> {
         _round = 0;
         _score = 0;
         _times.clear();
+        _recent.clear();
         _newRound();
       });
 
+  final List<String> _recent = [];
+
   void _newRound() {
-    _current = _build();
+    var r = _build();
+    for (var i = 0; i < 8 && _recent.contains(r.answer); i++) {
+      r = _build();
+    }
+    _recent.add(r.answer);
+    if (_recent.length > 6) _recent.removeAt(0);
+    _current = r;
     _answer = null;
     _timedOut = false;
     _left = _roundSeconds;
@@ -225,9 +234,9 @@ class _IdentificationScreenState extends State<IdentificationScreen> {
   Widget _levelPicker() => ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Padding(
-            padding: EdgeInsets.all(4),
-            child: Text('Оберіть рівень складності. 10 раундів, на кожен 20 секунд (IQ — 30 секунд).'),
+          Padding(
+            padding: const EdgeInsets.all(4),
+            child: Text('Оберіть рівень складності. $rounds раундів, на кожен 20 секунд (IQ — 30 секунд).'),
           ),
           for (final l in IdentLevel.values)
             Card(
@@ -246,7 +255,7 @@ class _IdentificationScreenState extends State<IdentificationScreen> {
     final text = Theme.of(context).textTheme;
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(_score >= 8 ? Icons.emoji_events : Icons.school,
+        Icon(_score >= rounds * 0.8 ? Icons.emoji_events : Icons.school,
             size: 64, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 12),
         Text('Правильно: $_score з $rounds', style: text.headlineSmall),
