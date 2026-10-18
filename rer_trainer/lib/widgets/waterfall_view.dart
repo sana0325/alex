@@ -36,6 +36,8 @@ class _WaterfallViewState extends State<WaterfallView> {
     final scheme = Theme.of(context).colorScheme;
     return LayoutBuilder(builder: (context, constraints) {
       _width = constraints.maxWidth;
+      widget.controller.targetWidth =
+          (_width * MediaQuery.devicePixelRatioOf(context)).round();
       return MouseRegion(
         onHover: (e) => _setCursor(e.localPosition),
         onExit: (_) => setState(() => _cursorX = null),

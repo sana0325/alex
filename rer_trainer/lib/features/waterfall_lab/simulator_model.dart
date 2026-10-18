@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
@@ -70,6 +71,31 @@ class SimulatorModel extends ChangeNotifier {
 
   /// Повністю замінює сцену (центр і смуга можуть змінитися).
   void replaceScene(SceneConfig config) => _apply(config);
+
+  int _preset = 0;
+  int get presetIndex => _preset;
+
+  /// Перемикає діапазон і підбирає рівні чорного/білого під його шум.
+  void selectPreset(int index) {
+    _preset = index;
+    final scene = bandPresets()[index].scene.copyWith(
+          fftSize: _config.fftSize,
+          rowsPerSecond: _config.rowsPerSecond,
+          averaging: _config.averaging,
+          paused: _config.paused,
+        );
+    fitLevels(scene);
+    waterfall.clearPeak();
+    _apply(scene);
+  }
+
+  /// Чорний — трохи нижче шуму на бін, білий — на 45 дБ вище.
+  void fitLevels([SceneConfig? scene]) {
+    final c = scene ?? _config;
+    final floor = c.noiseDensityDbmHz +
+        10 * math.log(c.sampleRate * 1.5 / c.fftSize) / math.ln10;
+    waterfall.setLevels(floor - 3, floor + 45);
+  }
 
   set fftSize(int v) => _apply(_config.copyWith(fftSize: v));
   set rowsPerSecond(double v) => _apply(_config.copyWith(rowsPerSecond: v));

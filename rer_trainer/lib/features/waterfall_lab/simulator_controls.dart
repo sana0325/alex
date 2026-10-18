@@ -21,8 +21,37 @@ class SimulatorControls extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
+            Text('Діапазон', style: text.titleSmall),
+            DropdownButton<int>(
+              value: model.presetIndex,
+              isExpanded: true,
+              items: [
+                for (final (i, p) in bandPresets().indexed)
+                  DropdownMenuItem(value: i, child: Text(p.title)),
+              ],
+              onChanged: (i) {
+                if (i != null) model.selectPreset(i);
+              },
+            ),
+            const SizedBox(height: 8),
             Row(children: [
               Expanded(child: Text('Сигнали', style: text.titleSmall)),
+              TextButton(
+                onPressed: () {
+                  for (final s in c.signals) {
+                    model.toggleSignal(s.id, true);
+                  }
+                },
+                child: const Text('Усі'),
+              ),
+              TextButton(
+                onPressed: () {
+                  for (final s in c.signals) {
+                    model.toggleSignal(s.id, false);
+                  }
+                },
+                child: const Text('Жодного'),
+              ),
               IconButton.filledTonal(
                 tooltip: c.paused ? 'Продовжити' : 'Пауза',
                 icon: Icon(c.paused ? Icons.play_arrow : Icons.pause),
@@ -113,6 +142,11 @@ class SimulatorControls extends StatelessWidget {
               onChanged: (r) => model.setLevels(r.start, r.end),
             ),
             TextButton.icon(
+              onPressed: model.fitLevels,
+              icon: const Icon(Icons.auto_fix_high),
+              label: const Text('Підібрати рівні автоматично'),
+            ),
+            TextButton.icon(
               onPressed: wf.clearPeak,
               icon: const Icon(Icons.restart_alt),
               label: const Text('Скинути утримання піків'),
@@ -138,14 +172,14 @@ class _SignalTile extends StatelessWidget {
         dense: true,
         contentPadding: EdgeInsets.zero,
         title: Text(spec.kind.title),
-        subtitle: Text('≈ ${f.toStringAsFixed(0)} МГц · ${spec.powerDbm.round()} дБм'),
+        subtitle: Text('≈ ${f.toStringAsFixed(f < 1000 ? 1 : 0)} МГц · ${spec.powerDbm.round()} дБм'),
         value: spec.enabled,
         onChanged: (v) => model.toggleSignal(spec.id, v),
       ),
       if (spec.enabled)
         Slider(
           value: spec.powerDbm,
-          min: -100,
+          min: -120,
           max: -40,
           divisions: 60,
           label: '${spec.powerDbm.round()} дБм',

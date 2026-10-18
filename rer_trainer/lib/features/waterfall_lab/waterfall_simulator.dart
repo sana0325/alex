@@ -19,11 +19,12 @@ class WaterfallSimulator extends StatefulWidget {
 
 class _WaterfallSimulatorState extends State<WaterfallSimulator> {
   late final SimulatorModel _model =
-      SimulatorModel(widget.initial ?? SceneConfig.demo24());
+      SimulatorModel(widget.initial ?? bandPresets().first.scene);
 
   @override
   void initState() {
     super.initState();
+    _model.fitLevels();
     _model.start();
   }
 
@@ -42,10 +43,12 @@ class _WaterfallSimulatorState extends State<WaterfallSimulator> {
 
   @override
   Widget build(BuildContext context) {
-    final c = _model.config;
-    final view = WaterfallView(
-      controller: _model.waterfall,
-      axis: FrequencyAxis(c.startHz, c.endHz),
+    final view = ListenableBuilder(
+      listenable: _model,
+      builder: (context, _) => WaterfallView(
+        controller: _model.waterfall,
+        axis: FrequencyAxis(_model.config.startHz, _model.config.endHz),
+      ),
     );
     return LayoutBuilder(builder: (context, constraints) {
       if (constraints.maxWidth >= 760) {

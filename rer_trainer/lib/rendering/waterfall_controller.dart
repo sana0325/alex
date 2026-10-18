@@ -71,11 +71,19 @@ class WaterfallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Ширина області відображення у фізичних пікселях. Якщо бінів більше,
+  /// рядок стискається за максимумом, щоб вузькі сигнали не зникали.
+  int? targetWidth;
+
   void addRow(Float32List row) {
     if (_disposed) return;
-    if (row.length != _width) _resize(row.length);
+    final target = targetWidth;
+    final pooled = target != null && target > 16 && row.length > target
+        ? _maxPool(row, target)
+        : row;
+    if (pooled.length != _width) _resize(pooled.length);
     _head = (_head - 1 + height) % height;
-    _history.setRange(_head * _width, (_head + 1) * _width, row);
+    _history.setRange(_head * _width, (_head + 1) * _width, pooled);
     _colorRow(_head);
     _latest = row;
     final peak = _peak;
@@ -88,6 +96,21 @@ class WaterfallController extends ChangeNotifier {
     }
     _rowsInWindow++;
     _requestImage();
+  }
+
+  static Float32List _maxPool(Float32List row, int width) {
+    final out = Float32List(width);
+    final ratio = row.length / width;
+    for (var x = 0; x < width; x++) {
+      final from = (x * ratio).floor();
+      final to = math.max(from + 1, ((x + 1) * ratio).floor());
+      var v = row[from];
+      for (var i = from + 1; i < to; i++) {
+        if (row[i] > v) v = row[i];
+      }
+      out[x] = v;
+    }
+    return out;
   }
 
   void _resize(int width) {

@@ -66,7 +66,8 @@ class SpectrumEngine {
 
   /// Кількість підкадрів на рядок: більше для малих БПФ, щоб не пропускати
   /// короткі пакети.
-  int get _subframes => _config.fftSize <= 1024 ? 8 : 4;
+  int get _subframes =>
+      _config.fftSize > 1024 || _sources.length > 4 ? 4 : 8;
 
   Float32List nextRow() {
     final n = _config.fftSize;
