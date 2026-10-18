@@ -8,6 +8,19 @@ class ProgressService extends ChangeNotifier {
   ProgressService._(this._prefs) {
     final raw = _prefs.getString(_key);
     if (raw != null) {
+      try {
+        _parse(raw);
+      } catch (_) {
+        // Пошкоджений прогрес не повинен заважати запуску.
+        _best.clear();
+        _mistakes.clear();
+        _attempts.clear();
+      }
+    }
+  }
+
+  void _parse(String raw) {
+    {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       _best.addAll((data['best'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, (v as num).toInt())));
