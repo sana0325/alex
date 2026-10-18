@@ -86,3 +86,34 @@ jobs:
         with:
           name: rer-trainer-linux
           path: rer_trainer/build/linux/x64/release/bundle/
+
+  release:
+    name: Публікація для завантаження
+    needs: [android, windows]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+
+      - name: Підготовка файлів
+        run: |
+          cp dist/rer-trainer-android-apk/app-release.apk RER-Trener.apk
+          (cd dist/rer-trainer-windows && zip -qr ../../RER-Trener-Windows.zip .)
+
+      - name: Оновлення релізу
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete rer-trainer-latest --cleanup-tag -y || true
+          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-Windows.zip \
+            --target "$GITHUB_SHA" \
+            --title "РЕР-Тренажер (остання збірка)" \
+            --notes "Android: завантажте RER-Trener.apk і встановіть. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe."
