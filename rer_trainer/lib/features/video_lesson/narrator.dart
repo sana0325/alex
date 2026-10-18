@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/services.dart';
 
-/// Озвучка українською через системний синтез мови (офлайн).
-/// Якщо українського голосу немає, [available] = false — урок іде із
-/// субтитрами без звуку.
+/// Озвучка українською через системний синтез мови Android (офлайн).
+/// На Windows, Linux і в браузері голосу немає — урок іде із субтитрами.
+/// Без сторонніх нативних модулів: на Windows вони спричиняли аварійний
+/// старт програми.
 class Narrator {
-  Narrator._(this._tts, this.available, this.note);
+  Narrator._(this.available, this.note);
 
-  final FlutterTts? _tts;
+  static const _channel = MethodChannel('rer/tts');
+
   final bool available;
 
   /// Пояснення для користувача, чому немає голосу.
@@ -17,52 +19,36 @@ class Narrator {
   static bool enabled = true;
 
   static Future<Narrator> create() async {
-    if (!enabled) return Narrator._(null, false, null);
+    if (!enabled) return Narrator._(false, null);
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) {
+      return Narrator._(false, 'Озвучка доступна в Android-версії. Тут урок іде із субтитрами.');
+    }
     try {
-      return await _create().timeout(const Duration(seconds: 5));
+      final ok = await _channel.invokeMethod<bool>('init').timeout(const Duration(seconds: 6)) ?? false;
+      if (ok) return Narrator._(true, null);
+      return Narrator._(false,
+          'Український голос не встановлено. Додайте його в налаштуваннях телефона: '
+          'Система → Мова → Синтез мовлення → Google → Українська.');
     } catch (e) {
       debugPrint('Синтез мови недоступний: $e');
-      return Narrator._(null, false, 'Озвучка на цьому пристрої недоступна — показуємо субтитри.');
-    }
-  }
-
-  static Future<Narrator> _create() async {
-    {
-      final tts = FlutterTts();
-      await tts.awaitSpeakCompletion(true);
-      final langs = (await tts.getLanguages as List<dynamic>? ?? const [])
-          .map((l) => l.toString())
-          .toList();
-      final uk = langs.firstWhere(
-        (l) => l.toLowerCase().startsWith('uk'),
-        orElse: () => '',
-      );
-      if (uk.isEmpty) {
-        return Narrator._(tts, false,
-            'Український голос не встановлено. Додайте його в налаштуваннях телефона: '
-            'Система → Мова → Синтез мовлення → Google → Українська.');
-      }
-      await tts.setLanguage(uk);
-      await tts.setSpeechRate(defaultTargetPlatform == TargetPlatform.android ? 0.48 : 0.9);
-      await tts.setPitch(1.0);
-      return Narrator._(tts, true, null);
+      return Narrator._(false, 'Озвучка на цьому пристрої недоступна — показуємо субтитри.');
     }
   }
 
   /// Говорить [text] і завершується, коли фразу дочитано.
   Future<void> speak(String text) async {
-    final tts = _tts;
-    if (!available || tts == null) return;
+    if (!available) return;
     try {
-      await tts.speak(text);
+      await _channel.invokeMethod<void>('speak', {'text': text});
     } catch (e) {
       debugPrint('Помилка озвучки: $e');
     }
   }
 
   Future<void> stop() async {
+    if (!available) return;
     try {
-      await _tts?.stop();
+      await _channel.invokeMethod<void>('stop');
     } catch (_) {}
   }
 }
