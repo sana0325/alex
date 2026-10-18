@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rer_trainer/features/video_lesson/narrator.dart';
 import 'package:rer_trainer/features/waterfall_lab/simulator_model.dart';
 import 'package:provider/provider.dart';
 import 'package:rer_trainer/features/modules/module_registry.dart';
@@ -14,6 +15,7 @@ import 'package:rer_trainer/features/training/exam_screen.dart';
 import 'package:rer_trainer/features/uav/compare_screen.dart';
 import 'package:rer_trainer/features/uav/uav_card.dart';
 import 'package:rer_trainer/features/uav/uav_profile.dart';
+import 'package:rer_trainer/features/video_lesson/video_lesson.dart';
 import 'package:rer_trainer/features/training/identification_screen.dart';
 import 'package:rer_trainer/features/training/stats_screen.dart';
 import 'package:rer_trainer/services/content_service.dart';
@@ -22,6 +24,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   SimulatorModel.engineEnabled = false;
+  Narrator.enabled = false;
   late ProgressService progress;
   late UavRepository repo;
   setUpAll(() async {
@@ -45,7 +48,8 @@ void main() {
     testWidgets('модуль «${m.title}» відкривається з уроком', (tester) async {
       expect(m.available, isTrue);
       await tester.pumpWidget(wrap(ModuleScreen(moduleId: m.id)));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Відеоурок'), findsOneWidget);
       expect(find.text('Урок'), findsOneWidget);
       expect(find.text('Тест'), findsOneWidget);
       expect(find.byType(TabBar), findsOneWidget);
@@ -133,6 +137,30 @@ void main() {
     expect(exam.questions.length, ExamScreen.questionCount);
     expect(exam.questions.toSet().length, ExamScreen.questionCount);
   });
+
+  for (final size in const [Size(360, 740), Size(1280, 800)]) {
+    testWidgets('відеоурок без помилок верстки (${size.width.round()} px)', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(wrap(const Scaffold(body: VideoLessonPlayer(asset: 'assets/video_lessons/enemy_uav.json'))));
+      for (var i = 0; i < 40 && find.byTooltip('Наступний кадр').evaluate().isEmpty; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final shown = tester.widgetList<Text>(find.byType(Text, skipOffstage: false)).map((t) => t.data ?? '').toList();
+      expect(shown.any((t) => t.contains('Ворожі БпЛА · 1/')), isTrue, reason: '$shown');
+      // Пройти всі кадри кнопкою «Наступний».
+      for (var i = 0; i < 8; i++) {
+        final next = find.ancestor(of: find.byIcon(Icons.skip_next), matching: find.byType(IconButton));
+        if (tester.widget<IconButton>(next).onPressed == null) break;
+        await tester.tap(next);
+        await tester.pump(const Duration(milliseconds: 700));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
 
   testWidgets('статистика відкривається', (tester) async {
     await progress.recordIdent('LoRa (chirp)', false);

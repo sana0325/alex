@@ -22,6 +22,7 @@ class ModuleInfo {
     required this.stage,
     this.lessonAsset,
     this.quizAsset,
+    this.videoAsset,
     this.interactiveTitle,
     this.interactive,
   });
@@ -36,6 +37,9 @@ class ModuleInfo {
   final int stage;
   final String? lessonAsset;
   final String? quizAsset;
+
+  /// Сценарій відеоуроку з озвучкою (assets/video_lessons/*.json).
+  final String? videoAsset;
   final String? interactiveTitle;
   final WidgetBuilder? interactive;
 
@@ -45,6 +49,7 @@ class ModuleInfo {
 final List<ModuleInfo> modules = [
   ModuleInfo(
     id: 'radio_basics',
+    videoAsset: 'assets/video_lessons/radio_basics.json',
     number: 1,
     title: 'Основи радіо',
     subtitle: 'Частота, dBm, SNR, діапазони БПЛА, модуляції',
@@ -57,6 +62,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'waterfall',
+    videoAsset: 'assets/video_lessons/waterfall.json',
     number: 2,
     title: 'Водоспад і спектрограма',
     subtitle: 'Як читати картинку та що на неї впливає',
@@ -69,6 +75,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'atlas',
+    videoAsset: 'assets/video_lessons/atlas.json',
     number: 3,
     title: 'Атлас сигналів',
     subtitle: 'FPV, OFDM, FHSS, LoRa, телеметрія, завади',
@@ -81,6 +88,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'mesh',
+    videoAsset: 'assets/video_lessons/mesh.json',
     number: 4,
     title: 'Mesh-мережі БПЛА',
     subtitle: 'MANET, TDMA-слоти, перебудова маршрутів',
@@ -93,6 +101,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'real_or_fake',
+    videoAsset: 'assets/video_lessons/real_or_fake.json',
     number: 5,
     title: 'Справжній сигнал чи фейк',
     subtitle: 'Імітатори, replay, ознаки підробки',
@@ -105,6 +114,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'direction_finding',
+    videoAsset: 'assets/video_lessons/direction_finding.json',
     number: 6,
     title: 'Пеленгування та триангуляція',
     subtitle: 'AoA, RSSI, TDOA, еліпс похибки, відстань за потужністю',
@@ -117,6 +127,7 @@ final List<ModuleInfo> modules = [
   ),
   ModuleInfo(
     id: 'enemy_uav',
+    videoAsset: 'assets/video_lessons/enemy_uav.json',
     number: 7,
     title: 'Ворожі БпЛА',
     subtitle: 'Орлан, Zala, Ланцет, SuperCam та ін.: як виглядають на РЕР',

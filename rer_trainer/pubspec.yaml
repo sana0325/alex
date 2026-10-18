@@ -39,6 +39,7 @@ dependencies:
   shared_preferences: ^2.5.6
   fftea: ^1.5.0+1
   flutter_markdown_plus: ^1.0.12
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
@@ -66,6 +67,7 @@ flutter:
     - assets/quizzes/
     - assets/atlas/
     - assets/uav_profiles.json
+    - assets/video_lessons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

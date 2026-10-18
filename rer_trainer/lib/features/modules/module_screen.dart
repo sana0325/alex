@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../widgets/lesson_view.dart';
 import '../training/quiz_view.dart';
+import '../video_lesson/video_lesson.dart';
 import 'module_registry.dart';
 
 /// Сторінка модуля: вкладки «Урок», інтерактив і «Тест».
@@ -20,6 +21,11 @@ class ModuleScreen extends StatelessWidget {
       );
     }
     final tabs = <(Tab, Widget)>[
+      if (module.videoAsset != null)
+        (
+          const Tab(icon: Icon(Icons.smart_display_outlined), text: 'Відеоурок'),
+          VideoLessonPlayer(asset: module.videoAsset!),
+        ),
       if (module.lessonAsset != null)
         (
           const Tab(icon: Icon(Icons.article_outlined), text: 'Урок'),
@@ -43,7 +49,11 @@ class ModuleScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: Text('${module.number}. ${module.title}'),
-          bottom: TabBar(tabs: [for (final t in tabs) t.$1]),
+          bottom: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            tabs: [for (final t in tabs) t.$1],
+          ),
         ),
         body: TabBarView(
           physics: const NeverScrollableScrollPhysics(),
