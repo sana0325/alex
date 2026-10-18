@@ -89,7 +89,7 @@ jobs:
 
   release:
     name: Публікація для завантаження
-    needs: [android, windows]
+    needs: [android, windows, linux]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -106,6 +106,8 @@ jobs:
         run: |
           cp dist/rer-trainer-android-apk/app-release.apk RER-Trener.apk
           (cd dist/rer-trainer-windows && zip -qr ../../RER-Trener-Windows.zip .)
+          chmod +x dist/rer-trainer-linux/rer_trainer
+          tar -czf RER-Trener-Linux.tar.gz -C dist/rer-trainer-linux .
 
       - name: Оновлення релізу
         env:
@@ -113,7 +115,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete rer-trainer-latest --cleanup-tag -y || true
-          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-Windows.zip \
+          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-Windows.zip RER-Trener-Linux.tar.gz \
             --target "$GITHUB_SHA" \
             --title "РЕР-Тренажер (остання збірка)" \
-            --notes "Android: завантажте RER-Trener.apk і встановіть. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe."
+            --notes "Android: завантажте RER-Trener.apk і встановіть. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe. Linux: розпакуйте RER-Trener-Linux.tar.gz і запустіть ./rer_trainer."
