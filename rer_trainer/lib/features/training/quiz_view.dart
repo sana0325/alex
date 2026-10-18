@@ -8,18 +8,23 @@ import '../../services/progress_service.dart';
 /// Проходження тесту: питання по одному, пояснення після відповіді,
 /// підсумок і збереження результату.
 class QuizView extends StatefulWidget {
-  const QuizView({super.key, required this.moduleId, required this.asset});
+  const QuizView({super.key, required this.moduleId, this.asset, this.quiz})
+      : assert(asset != null || quiz != null);
 
   final String moduleId;
-  final String asset;
+
+  /// Шлях до JSON-тесту в assets або готовий набір питань [quiz].
+  final String? asset;
+  final Quiz? quiz;
 
   @override
   State<QuizView> createState() => _QuizViewState();
 }
 
 class _QuizViewState extends State<QuizView> {
-  late final Future<Quiz> _quiz =
-      context.read<ContentService>().quiz(widget.asset);
+  late final Future<Quiz> _quiz = widget.quiz != null
+      ? Future.value(widget.quiz!)
+      : context.read<ContentService>().quiz(widget.asset!);
 
   int _index = 0;
   int? _selected;

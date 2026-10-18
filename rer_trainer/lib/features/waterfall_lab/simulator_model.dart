@@ -16,6 +16,9 @@ class SimulatorModel extends ChangeNotifier {
   StreamSubscription<dynamic>? _sub;
   bool _disposed = false;
 
+  /// Віджет не видно (інша вкладка) — генерацію зупинено.
+  bool _hidden = false;
+
   SceneConfig get config => _config;
 
   Future<void> start() async {
@@ -27,13 +30,22 @@ class SimulatorModel extends ChangeNotifier {
     _engine = engine;
     _sub = engine.rows.listen(waterfall.addRow);
     // Конфігурація могла змінитися, поки ізолят запускався.
-    engine.update(_config);
+    engine.update(_effective);
   }
+
+  SceneConfig get _effective =>
+      _hidden ? _config.copyWith(paused: true) : _config;
 
   void _apply(SceneConfig config) {
     _config = config;
-    _engine?.update(config);
+    _engine?.update(_effective);
     notifyListeners();
+  }
+
+  set visible(bool value) {
+    if (_hidden == !value) return;
+    _hidden = !value;
+    _engine?.update(_effective);
   }
 
   void toggleSignal(String id, bool enabled) => _apply(_config.copyWith(
@@ -49,6 +61,15 @@ class SimulatorModel extends ChangeNotifier {
             s.id == id ? s.copyWith(powerDbm: dbm) : s,
         ],
       ));
+
+  /// Замінює опис сигналу [id] результатом [update].
+  void replaceSignal(String id, SignalSpec Function(SignalSpec) update) =>
+      _apply(_config.copyWith(signals: [
+        for (final s in _config.signals) s.id == id ? update(s) : s,
+      ]));
+
+  /// Повністю замінює сцену (центр і смуга можуть змінитися).
+  void replaceScene(SceneConfig config) => _apply(config);
 
   set fftSize(int v) => _apply(_config.copyWith(fftSize: v));
   set rowsPerSecond(double v) => _apply(_config.copyWith(rowsPerSecond: v));

@@ -71,7 +71,7 @@ class SpectrumEngine {
   Float32List nextRow() {
     final n = _config.fftSize;
     final fs = _config.sampleRate;
-    final dt = 1 / _config.rowsPerSecond;
+    final dt = _config.timeScale / _config.rowsPerSecond;
     final sigma =
         math.sqrt(dbmToMw(_config.noiseDensityDbmHz) * fs / 2);
     final k = _subframes;

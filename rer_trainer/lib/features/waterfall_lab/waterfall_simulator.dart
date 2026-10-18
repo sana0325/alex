@@ -28,6 +28,13 @@ class _WaterfallSimulatorState extends State<WaterfallSimulator> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Неактивні вкладки навігації вимикають TickerMode — ставимо на паузу.
+    _model.visible = TickerMode.valuesOf(context).enabled;
+  }
+
+  @override
   void dispose() {
     _model.dispose();
     super.dispose();

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../atlas/atlas_browser.dart';
+import '../direction_finding/df_lab.dart';
+import '../mesh/mesh_lab.dart';
 import '../radio_basics/radio_calculator.dart';
+import '../real_or_fake/fake_trainer.dart';
 import '../waterfall_lab/waterfall_simulator.dart';
 
 /// Поточний етап розробки: модулі з більшим номером етапу показуються
 /// як «у розробці».
-const int kCurrentStage = 1;
+const int kCurrentStage = 4;
 
 class ModuleInfo {
   const ModuleInfo({
@@ -62,37 +66,53 @@ final List<ModuleInfo> modules = [
     interactiveTitle: 'Симулятор',
     interactive: (_) => const WaterfallSimulator(),
   ),
-  const ModuleInfo(
+  ModuleInfo(
     id: 'atlas',
     number: 3,
     title: 'Атлас сигналів',
     subtitle: 'FPV, OFDM, FHSS, LoRa, телеметрія, завади',
     icon: Icons.collections_bookmark,
     stage: 2,
+    lessonAsset: 'assets/lessons/03_atlas.md',
+    quizAsset: 'assets/quizzes/atlas.json',
+    interactiveTitle: 'Атлас',
+    interactive: (_) => const AtlasBrowser(),
   ),
-  const ModuleInfo(
+  ModuleInfo(
     id: 'mesh',
     number: 4,
     title: 'Mesh-мережі БПЛА',
     subtitle: 'MANET, TDMA-слоти, перебудова маршрутів',
     icon: Icons.hub,
     stage: 2,
+    lessonAsset: 'assets/lessons/04_mesh.md',
+    quizAsset: 'assets/quizzes/mesh.json',
+    interactiveTitle: 'Схема',
+    interactive: (_) => const MeshLab(),
   ),
-  const ModuleInfo(
+  ModuleInfo(
     id: 'real_or_fake',
     number: 5,
     title: 'Справжній сигнал чи фейк',
     subtitle: 'Імітатори, replay, ознаки підробки',
     icon: Icons.policy,
     stage: 3,
+    lessonAsset: 'assets/lessons/05_real_or_fake.md',
+    quizAsset: 'assets/quizzes/real_or_fake.json',
+    interactiveTitle: 'Знайди фейк',
+    interactive: (_) => const FakeTrainer(),
   ),
-  const ModuleInfo(
+  ModuleInfo(
     id: 'direction_finding',
     number: 6,
     title: 'Пеленгування та триангуляція',
     subtitle: 'AoA, RSSI, TDOA, еліпс похибки',
     icon: Icons.explore,
     stage: 3,
+    lessonAsset: 'assets/lessons/06_direction_finding.md',
+    quizAsset: 'assets/quizzes/direction_finding.json',
+    interactiveTitle: 'Карта',
+    interactive: (_) => const DirectionFindingLab(),
   ),
 ];
 

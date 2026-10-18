@@ -15,8 +15,8 @@ class AnalogFpvSignal extends SignalSource {
 
   @override
   void synth(Float64List re, Float64List im, double t, double sampleRate) {
-    final dev = spec.param('deviation', 3.5e6);
-    final audioOffset = spec.param('audioOffset', 6.5e6);
+    final dev = param('deviation', 3.5e6) * bandwidthScale;
+    final audioOffset = param('audioOffset', 6.5e6);
     final a = amplitude;
     final aAudio = a * 0.12;
     final dt = 1 / sampleRate;

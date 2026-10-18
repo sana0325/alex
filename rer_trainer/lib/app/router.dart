@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 import '../features/home/home_screen.dart';
 import '../features/modules/module_screen.dart';
 import '../features/modules/modules_screen.dart';
+import '../features/training/exam_screen.dart';
+import '../features/training/identification_screen.dart';
 import '../features/training/quiz_screen.dart';
+import '../features/training/stats_screen.dart';
 import '../features/training/training_screen.dart';
 import '../features/waterfall_lab/simulator_screen.dart';
 import 'adaptive_shell.dart';
@@ -41,6 +44,18 @@ GoRouter buildRouter() => GoRouter(
                 path: '/training',
                 builder: (_, _) => const TrainingScreen(),
                 routes: [
+                  GoRoute(
+                    path: 'ident',
+                    builder: (_, _) => const IdentificationScreen(),
+                  ),
+                  GoRoute(
+                    path: 'exam',
+                    builder: (_, _) => const ExamScreen(),
+                  ),
+                  GoRoute(
+                    path: 'stats',
+                    builder: (_, _) => const StatsScreen(),
+                  ),
                   GoRoute(
                     path: 'quiz/:id',
                     builder: (_, state) =>

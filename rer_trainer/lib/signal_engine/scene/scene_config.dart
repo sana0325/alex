@@ -11,6 +11,7 @@ class SceneConfig {
     this.noiseDensityDbmHz = -150,
     this.averaging = 0.0,
     this.paused = false,
+    this.timeScale = 1.0,
   });
 
   final double centerHz;
@@ -26,7 +27,23 @@ class SceneConfig {
   /// Коефіцієнт експоненційного усереднення рядків (0 — без усереднення).
   final double averaging;
   final bool paused;
+
+  /// Скільки секунд модельного часу припадає на секунду реального.
+  /// Менше 1 — «уповільнення», щоб побачити швидкі процеси (chirp, TDMA).
+  final double timeScale;
   final List<SignalSpec> signals;
+
+  SceneConfig withCenter(double centerHz, double sampleRate) => SceneConfig(
+        centerHz: centerHz,
+        sampleRate: sampleRate,
+        fftSize: fftSize,
+        rowsPerSecond: rowsPerSecond,
+        noiseDensityDbmHz: noiseDensityDbmHz,
+        averaging: averaging,
+        paused: paused,
+        timeScale: timeScale,
+        signals: signals,
+      );
 
   double get startHz => centerHz - sampleRate / 2;
   double get endHz => centerHz + sampleRate / 2;
@@ -37,6 +54,7 @@ class SceneConfig {
     double? noiseDensityDbmHz,
     double? averaging,
     bool? paused,
+    double? timeScale,
     List<SignalSpec>? signals,
   }) =>
       SceneConfig(
@@ -47,6 +65,7 @@ class SceneConfig {
         noiseDensityDbmHz: noiseDensityDbmHz ?? this.noiseDensityDbmHz,
         averaging: averaging ?? this.averaging,
         paused: paused ?? this.paused,
+        timeScale: timeScale ?? this.timeScale,
         signals: signals ?? this.signals,
       );
 
