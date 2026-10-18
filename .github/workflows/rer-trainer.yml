@@ -105,7 +105,33 @@ jobs:
           foreach ($f in "msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll") {
             Copy-Item "$env:WINDIR/System32/$f" $dst
           }
+          Copy-Item "windows/diagnostyka.bat" "$dst/Діагностика.bat"
           Get-ChildItem $dst
+
+      - name: Інсталятор (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" windows/installer.iss
+          Get-ChildItem build/installer
+
+      - name: Перевірка інсталятора
+        shell: pwsh
+        run: |
+          $setup = Get-Item build/installer/RER-Trener-Setup.exe
+          Start-Process $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/TASKS=desktopicon' -Wait
+          $exe = Join-Path $env:LOCALAPPDATA 'Programs\RER-Trener\rer_trainer.exe'
+          if (!(Test-Path $exe)) { Write-Host "ЗБІЙ: інсталятор не встановив програму"; exit 1 }
+          $p = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { Write-Host "ЗБІЙ: встановлена програма завершилася, код $($p.ExitCode)"; exit 1 }
+          Write-Host "OK: встановлена програма працює"
+          Stop-Process -Id $p.Id
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: rer-trainer-windows-setup
+          path: rer_trainer/build/installer/RER-Trener-Setup.exe
 
       - uses: actions/upload-artifact@v6
         with:
@@ -167,6 +193,7 @@ jobs:
         run: |
           cp dist/rer-trainer-android-apk/app-phone-release.apk RER-Trener.apk
           cp dist/rer-trainer-android-apk/app-release.apk RER-Trener-universalnyi.apk
+          cp dist/rer-trainer-windows-setup/RER-Trener-Setup.exe RER-Trener-Setup.exe
           (cd dist/rer-trainer-windows && zip -qr ../../RER-Trener-Windows.zip .)
           chmod +x dist/rer-trainer-linux/rer_trainer
           tar -czf RER-Trener-Linux.tar.gz -C dist/rer-trainer-linux .
@@ -177,7 +204,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete rer-trainer-latest --cleanup-tag -y || true
-          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-universalnyi.apk RER-Trener-Windows.zip RER-Trener-Linux.tar.gz \
+          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-universalnyi.apk RER-Trener-Setup.exe RER-Trener-Windows.zip RER-Trener-Linux.tar.gz \
             --target "$GITHUB_SHA" \
             --title "РЕР-Тренажер (остання збірка)" \
-            --notes "Android: RER-Trener.apk (усі телефони ARM, 32 і 64 біт). RER-Trener-universalnyi.apk — додатково для емуляторів x86. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe. Linux: розпакуйте RER-Trener-Linux.tar.gz і запустіть ./rer_trainer."
+            --notes "Android: RER-Trener.apk (усі телефони ARM, 32 і 64 біт). RER-Trener-universalnyi.apk — додатково для емуляторів x86. Windows: RER-Trener-Setup.exe (інсталятор) або RER-Trener-Windows.zip (розпакувати й запустити rer_trainer.exe; якщо не стартує — Діагностика.bat). Linux: розпакуйте RER-Trener-Linux.tar.gz і запустіть ./rer_trainer."
