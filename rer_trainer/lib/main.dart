@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -24,6 +25,7 @@ Future<void> main() async {
     started = true;
   }, (error, stack) {
     debugPrint('Неперехоплена помилка: $error\n$stack');
+    if (!started) _writeErrorLog('$error\n$stack');
     // Якщо застосунок не зміг стартувати — показати причину на екрані.
     if (started) return;
     runApp(MaterialApp(
@@ -50,4 +52,13 @@ class _ErrorText extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// Записує помилку запуску у тимчасову теку (rer_trainer_error.txt),
+/// щоб її можна було прочитати навіть без вікна.
+void _writeErrorLog(String text) {
+  try {
+    File('${Directory.systemTemp.path}${Platform.pathSeparator}rer_trainer_error.txt')
+        .writeAsStringSync('${DateTime.now()}\n$text\n');
+  } catch (_) {}
 }
