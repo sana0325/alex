@@ -37,12 +37,17 @@ jobs:
       - run: flutter test
 
       - name: Збірка APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
+          flutter build apk --release --split-per-abi
 
       - uses: actions/upload-artifact@v6
         with:
           name: rer-trainer-android-apk
-          path: rer_trainer/build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            rer_trainer/build/app/outputs/flutter-apk/app-release.apk
+            rer_trainer/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            rer_trainer/build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
 
   windows:
     name: Windows
@@ -57,6 +62,17 @@ jobs:
 
       - run: flutter pub get
       - run: flutter build windows --release
+
+      # Бібліотеки Visual C++ — щоб програма запускалася й без
+      # встановленого Visual C++ Redistributable.
+      - name: Додати бібліотеки Visual C++
+        shell: pwsh
+        run: |
+          $dst = "build/windows/x64/runner/Release"
+          foreach ($f in "msvcp140.dll","vcruntime140.dll","vcruntime140_1.dll") {
+            Copy-Item "$env:WINDIR/System32/$f" $dst
+          }
+          Get-ChildItem $dst
 
       - uses: actions/upload-artifact@v6
         with:
@@ -104,7 +120,9 @@ jobs:
 
       - name: Підготовка файлів
         run: |
-          cp dist/rer-trainer-android-apk/app-release.apk RER-Trener.apk
+          cp dist/rer-trainer-android-apk/app-arm64-v8a-release.apk RER-Trener.apk
+          cp dist/rer-trainer-android-apk/app-armeabi-v7a-release.apk RER-Trener-staryi-telefon.apk
+          cp dist/rer-trainer-android-apk/app-release.apk RER-Trener-universalnyi.apk
           (cd dist/rer-trainer-windows && zip -qr ../../RER-Trener-Windows.zip .)
           chmod +x dist/rer-trainer-linux/rer_trainer
           tar -czf RER-Trener-Linux.tar.gz -C dist/rer-trainer-linux .
@@ -115,7 +133,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete rer-trainer-latest --cleanup-tag -y || true
-          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-Windows.zip RER-Trener-Linux.tar.gz \
+          gh release create rer-trainer-latest RER-Trener.apk RER-Trener-staryi-telefon.apk RER-Trener-universalnyi.apk RER-Trener-Windows.zip RER-Trener-Linux.tar.gz \
             --target "$GITHUB_SHA" \
             --title "РЕР-Тренажер (остання збірка)" \
-            --notes "Android: завантажте RER-Trener.apk і встановіть. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe. Linux: розпакуйте RER-Trener-Linux.tar.gz і запустіть ./rer_trainer."
+            --notes "Android: RER-Trener.apk (сучасні телефони, arm64). Якщо не встановлюється — RER-Trener-staryi-telefon.apk або RER-Trener-universalnyi.apk. Windows: розпакуйте RER-Trener-Windows.zip і запустіть rer_trainer.exe. Linux: розпакуйте RER-Trener-Linux.tar.gz і запустіть ./rer_trainer."
