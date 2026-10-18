@@ -82,7 +82,7 @@ void main() {
   });
 
   test('кожен тип сигналу видно над шумом у своїй сцені', () {
-    for (final k in SignalKind.values) {
+    for (final k in basicKinds) {
       final cfg = sceneFor(k);
       final e = SpectrumEngine(cfg);
       final floor = cfg.noiseDensityDbmHz +

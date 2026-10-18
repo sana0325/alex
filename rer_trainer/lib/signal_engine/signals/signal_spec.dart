@@ -8,6 +8,14 @@ enum SignalKind {
   wifi,
   bluetooth,
   mesh,
+  fsk2Horns,
+  fhssRandom,
+  fhssRows,
+  mfskTrapezoid,
+  ofdmBlock,
+  mobileBurst,
+  microwave,
+  cw,
 }
 
 extension SignalKindInfo on SignalKind {
@@ -20,6 +28,32 @@ extension SignalKindInfo on SignalKind {
         SignalKind.wifi => 'Wi-Fi',
         SignalKind.bluetooth => 'Bluetooth',
         SignalKind.mesh => 'Mesh-мережа',
+        SignalKind.fsk2Horns => '«Ріжки» 2FSK',
+        SignalKind.fhssRandom => 'ППРЧ «дощиком»',
+        SignalKind.fhssRows => 'ППРЧ рівними рядами',
+        SignalKind.mfskTrapezoid => '«Трапеція» MFSK',
+        SignalKind.ofdmBlock => 'Цифрове відео',
+        SignalKind.mobileBurst => 'Мобільний зв\'язок',
+        SignalKind.microwave => 'Мікрохвильовка',
+        SignalKind.cw => 'Несуча',
+      };
+
+  /// Назва примітиву в assets/uav_profiles.json.
+  static SignalKind fromPrimitive(String name) => switch (name) {
+        'fsk2_horns' => SignalKind.fsk2Horns,
+        'fhss_random' => SignalKind.fhssRandom,
+        'fhss_rows' => SignalKind.fhssRows,
+        'mfsk_trapezoid' => SignalKind.mfskTrapezoid,
+        'ofdm_block' => SignalKind.ofdmBlock,
+        'analog_video' => SignalKind.analogFpv,
+        'lora_chirp' => SignalKind.lora,
+        'mobile_burst' => SignalKind.mobileBurst,
+        'wifi_hump' => SignalKind.wifi,
+        'bt_hops' => SignalKind.bluetooth,
+        'microwave_teeth' => SignalKind.microwave,
+        'cw' => SignalKind.cw,
+        'telemetry' => SignalKind.telemetry,
+        _ => throw ArgumentError('Невідомий примітив: $name'),
       };
 }
 

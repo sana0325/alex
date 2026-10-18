@@ -67,7 +67,7 @@ void main() {
     for (final f in Directory('assets/quizzes').listSync().whereType<File>()) {
       final quiz = Quiz.fromJson(
           jsonDecode(f.readAsStringSync()) as Map<String, dynamic>);
-      expect(quiz.questions.length, inInclusiveRange(5, 10), reason: f.path);
+      expect(quiz.questions.length, inInclusiveRange(5, f.path.contains('enemy_uav') ? 60 : 10), reason: f.path);
       for (final q in quiz.questions) {
         expect(q.answer, inInclusiveRange(0, q.options.length - 1));
       }

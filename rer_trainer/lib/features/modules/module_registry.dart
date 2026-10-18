@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../atlas/atlas_browser.dart';
-import '../direction_finding/df_lab.dart';
+import '../direction_finding/distance_calculator.dart';
 import '../mesh/mesh_lab.dart';
 import '../radio_basics/radio_calculator.dart';
 import '../real_or_fake/fake_trainer.dart';
+import '../uav/uav_atlas.dart';
 import '../waterfall_lab/waterfall_simulator.dart';
 
 /// Поточний етап розробки: модулі з більшим номером етапу показуються
@@ -106,13 +107,25 @@ final List<ModuleInfo> modules = [
     id: 'direction_finding',
     number: 6,
     title: 'Пеленгування та триангуляція',
-    subtitle: 'AoA, RSSI, TDOA, еліпс похибки',
+    subtitle: 'AoA, RSSI, TDOA, еліпс похибки, відстань за потужністю',
     icon: Icons.explore,
     stage: 3,
     lessonAsset: 'assets/lessons/06_direction_finding.md',
     quizAsset: 'assets/quizzes/direction_finding.json',
-    interactiveTitle: 'Карта',
-    interactive: (_) => const DirectionFindingLab(),
+    interactiveTitle: 'Карта і відстань',
+    interactive: (_) => const DirectionFindingTools(),
+  ),
+  ModuleInfo(
+    id: 'enemy_uav',
+    number: 7,
+    title: 'Ворожі БпЛА',
+    subtitle: 'Орлан, Zala, Ланцет, SuperCam та ін.: як виглядають на РЕР',
+    icon: Icons.flight,
+    stage: 4,
+    lessonAsset: 'assets/lessons/07_enemy_uav.md',
+    quizAsset: 'assets/quizzes/enemy_uav.json',
+    interactiveTitle: 'Картки бортів',
+    interactive: (_) => const UavAtlas(),
   ),
 ];
 

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:rer_trainer/features/waterfall_lab/simulator_model.dart';
 import 'package:provider/provider.dart';
 import 'package:rer_trainer/app/app.dart';
 import 'package:rer_trainer/services/content_service.dart';
@@ -6,6 +7,7 @@ import 'package:rer_trainer/services/progress_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  SimulatorModel.engineEnabled = false;
   testWidgets('Головний екран відкривається українською', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final progress = await ProgressService.load();

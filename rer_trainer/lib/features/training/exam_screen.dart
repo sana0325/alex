@@ -14,6 +14,12 @@ class ExamScreen extends StatefulWidget {
 
   static const int questionCount = 20;
 
+  /// Випадкові [questionCount] питань з усіх тестів.
+  static Quiz assemble(List<QuizQuestion> all, math.Random rnd) {
+    final pool = List.of(all)..shuffle(rnd);
+    return Quiz(title: 'Підсумковий іспит', questions: pool.take(questionCount).toList());
+  }
+
   @override
   State<ExamScreen> createState() => _ExamScreenState();
 }
@@ -28,11 +34,7 @@ class _ExamScreenState extends State<ExamScreen> {
     for (final m in modules) {
       if (m.quizAsset != null) all.addAll((await content.quiz(m.quizAsset!)).questions);
     }
-    all.shuffle(math.Random());
-    return Quiz(
-      title: 'Підсумковий іспит',
-      questions: all.take(ExamScreen.questionCount).toList(),
-    );
+    return ExamScreen.assemble(all, math.Random());
   }
 
   @override

@@ -11,6 +11,9 @@ import '../../signal_engine/signal_engine.dart';
 class SimulatorModel extends ChangeNotifier {
   SimulatorModel(SceneConfig initial) : _config = initial;
 
+  /// Вимикає запуск ізоляту-генератора (для тестів інтерфейсу).
+  static bool engineEnabled = true;
+
   final WaterfallController waterfall = WaterfallController();
   SceneConfig _config;
   EngineHandle? _engine;
@@ -23,6 +26,7 @@ class SimulatorModel extends ChangeNotifier {
   SceneConfig get config => _config;
 
   Future<void> start() async {
+    if (!engineEnabled) return;
     final engine = await EngineHandle.spawn(_config);
     if (_disposed) {
       engine.dispose();

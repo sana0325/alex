@@ -28,7 +28,7 @@ class TrainingScreen extends StatelessWidget {
                 child: ListTile(
                   leading: const Icon(Icons.timer),
                   title: const Text('Ідентифікація на час'),
-                  subtitle: const Text('10 випадкових водоспадів, 20 секунд на кожен'),
+                  subtitle: const Text('Борти з методички, пастки й невідомі сигнали · 4 рівні складності'),
                   trailing: const Icon(Icons.play_arrow),
                   onTap: () => context.go('/training/ident'),
                 ),
@@ -38,7 +38,7 @@ class TrainingScreen extends StatelessWidget {
                   leading: const Icon(Icons.workspace_premium),
                   title: const Text('Підсумковий іспит'),
                   subtitle: Text(exam == null
-                      ? '20 питань з усіх модулів'
+                      ? '20 питань з усіх модулів (зокрема «Ворожі БпЛА»)'
                       : '20 питань з усіх модулів · найкращий результат: $exam %'),
                   trailing: const Icon(Icons.play_arrow),
                   onTap: () => context.go('/training/exam'),

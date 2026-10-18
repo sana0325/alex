@@ -21,6 +21,8 @@ class QuizQuestion {
     required this.answer,
     required this.explanation,
     required this.topic,
+    this.viewProfile,
+    this.viewIndex = 0,
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) => QuizQuestion(
@@ -29,6 +31,8 @@ class QuizQuestion {
         answer: json['answer'] as int,
         explanation: json['explain'] as String,
         topic: json['topic'] as String? ?? 'Загальне',
+        viewProfile: (json['view'] as Map<String, dynamic>?)?['profile'] as String?,
+        viewIndex: ((json['view'] as Map<String, dynamic>?)?['index'] as int?) ?? 0,
       );
 
   final String question;
@@ -40,4 +44,8 @@ class QuizQuestion {
 
   /// Тема для статистики помилок.
   final String topic;
+
+  /// Питання з картинкою: синтетичний водоспад виду [viewIndex] профілю.
+  final String? viewProfile;
+  final int viewIndex;
 }

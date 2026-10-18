@@ -11,6 +11,7 @@ import 'mesh.dart';
 import 'ofdm_signals.dart';
 import 'signal_spec.dart';
 import 'telemetry.dart';
+import 'uav_primitives.dart';
 
 const double twoPi = 2 * math.pi;
 
@@ -37,6 +38,20 @@ abstract class SignalSource {
             'period': 1600,
           }),
         SignalKind.mesh => MeshSignal(spec),
+        SignalKind.fsk2Horns => Fsk2Horns(spec),
+        SignalKind.fhssRandom => FhssRandom(spec),
+        SignalKind.fhssRows => FhssRows(spec),
+        SignalKind.mfskTrapezoid => FhssRows(spec, defaults: const {
+            'rows': 1,
+            'shape': 2,
+            'pw': 500e3,
+            'dwell': 0.02,
+            'duty': 0.85,
+          }),
+        SignalKind.ofdmBlock => OfdmBlock(spec),
+        SignalKind.mobileBurst => MobileBurst(spec),
+        SignalKind.microwave => MicrowaveTeeth(spec),
+        SignalKind.cw => CwTone(spec),
       };
 
   final SignalSpec spec;
@@ -68,6 +83,15 @@ abstract class SignalSource {
   }
 
   double get amplitude => amplitudeFor(spec.powerDbm);
+
+  /// Амплітуда в момент [t] з урахуванням поведінки «різка зміна потужності»
+  /// (параметри powerJumpDb і jumpEvery).
+  double ampAt(double t) {
+    final jump = param('powerJumpDb', 0);
+    if (jump == 0) return amplitude;
+    final high = hash01(spec.seed + 77, (t / param('jumpEvery', 8)).floor()) < 0.5;
+    return amplitudeFor(spec.powerDbm + (high ? jump : 0));
+  }
 
   void beginRow(double dt) => fading.step(dt);
 

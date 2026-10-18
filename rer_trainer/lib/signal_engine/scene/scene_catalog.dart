@@ -2,6 +2,18 @@ import '../core/rng.dart';
 import '../signals/signal_spec.dart';
 import 'scene_config.dart';
 
+/// Базові типи сигналів атласу (без примітивів профілів бортів).
+const List<SignalKind> basicKinds = [
+  SignalKind.analogFpv,
+  SignalKind.ofdmVideo,
+  SignalKind.fhssControl,
+  SignalKind.lora,
+  SignalKind.telemetry,
+  SignalKind.wifi,
+  SignalKind.bluetooth,
+  SignalKind.mesh,
+];
+
 /// Типові навчальні сцени для кожного типу сигналу. Якщо передано [rng],
 /// потужність, частота й «зерно» сигналу випадково змінюються — так
 /// будуються завдання режиму «Ідентифікація».
@@ -98,6 +110,8 @@ SceneConfig sceneFor(SignalKind kind, {Rng? rng}) {
           }),
         ],
       );
+    default:
+      throw ArgumentError('Для ${kind.name} використовуйте профілі бортів');
   }
 }
 

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../models/quiz.dart';
 import '../../services/content_service.dart';
 import '../../services/progress_service.dart';
+import '../../widgets/live_waterfall.dart';
+import '../uav/uav_profile.dart';
 
 /// Проходження тесту: питання по одному, пояснення після відповіді,
 /// підсумок і збереження результату.
@@ -103,6 +105,10 @@ class _QuizViewState extends State<QuizView> {
         Text('Питання ${_index + 1} з ${quiz.questions.length}',
             style: theme.textTheme.labelLarge),
         const SizedBox(height: 12),
+        if (q.viewProfile != null) ...[
+          QuizPicture(key: ValueKey('pic$_index${q.viewProfile}'), profileId: q.viewProfile!, viewIndex: q.viewIndex),
+          const SizedBox(height: 12),
+        ],
         Text(q.question, style: theme.textTheme.titleMedium),
         const SizedBox(height: 12),
         for (var i = 0; i < q.options.length; i++)
@@ -229,4 +235,39 @@ class _OptionTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// Картинка до питання: живий синтетичний водоспад виду профілю борту.
+class QuizPicture extends StatefulWidget {
+  const QuizPicture({super.key, required this.profileId, required this.viewIndex});
+
+  final String profileId;
+  final int viewIndex;
+
+  @override
+  State<QuizPicture> createState() => _QuizPictureState();
+}
+
+class _QuizPictureState extends State<QuizPicture> {
+  late final Future<UavRepository> _repo = UavRepository.load(DefaultAssetBundle.of(context));
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 230,
+        child: FutureBuilder<UavRepository>(
+          future: _repo,
+          builder: (context, snap) {
+            final p = snap.data?.byId(widget.profileId);
+            if (p == null || p.views.length <= widget.viewIndex) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final v = p.views[widget.viewIndex];
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LiveWaterfall(scene: v.scene(), spectrumHeight: 60),
+            );
+          },
+        ),
+      );
 }

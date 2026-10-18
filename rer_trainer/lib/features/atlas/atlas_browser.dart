@@ -53,6 +53,7 @@ IconData atlasIcon(SignalKind k) => switch (k) {
       SignalKind.wifi => Icons.wifi,
       SignalKind.bluetooth => Icons.bluetooth,
       SignalKind.mesh => Icons.hub,
+      _ => Icons.sensors,
     };
 
 /// Список карток атласу.

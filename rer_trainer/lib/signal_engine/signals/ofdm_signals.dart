@@ -25,11 +25,25 @@ class OfdmModulator {
     required double bandwidthHz,
     required double sampleRate,
     required Rng rng,
+    bool bump = false,
+    double notch = 0,
+    double unevenRatio = 0,
+    double unevenDb = 0,
   }) {
     final spacing = sampleRate / size;
     final m = math.max(2, (bandwidthHz / spacing).round()).clamp(2, size - 2);
     final first = (offsetHz / spacing).round() - m ~/ 2;
     final a = amp / math.sqrt(2 * m);
+    // Профіль амплітуд піднесучих: «бугор», провал посередині, нерівномірність.
+    final gains = Float64List(m);
+    final notchHalf = (notch * m / 2).ceil();
+    final unevenGain = math.pow(10, unevenDb / 20).toDouble();
+    for (var k = 0; k < m; k++) {
+      var g = bump ? math.pow(math.sin(math.pi * (k + 0.5) / m), 0.7).toDouble() : 1.0;
+      if (notch > 0 && (k - m / 2).abs() < notchHalf) g *= 0.12;
+      if (unevenRatio > 0 && k < unevenRatio * m) g *= unevenGain;
+      gains[k] = g;
+    }
     final cp = size ~/ 8;
     var n = 0;
     var start = rng.nextInt(size + cp);
@@ -39,8 +53,9 @@ class OfdmModulator {
         if (k == m ~/ 2) continue; // нульова центральна піднесуча
         final bin = ((first + k) % size + size) % size;
         // Спряження на вході: conj(FFT(conj(X))) = N · IFFT(X).
-        _buf[bin] = Float64x2(rng.uniform() < 0.5 ? a : -a,
-            rng.uniform() < 0.5 ? a : -a);
+        final ak = a * gains[k];
+        _buf[bin] = Float64x2(rng.uniform() < 0.5 ? ak : -ak,
+            rng.uniform() < 0.5 ? ak : -ak);
       }
       _fft.inPlaceFft(_buf);
       for (var i = start; i < size + cp && n < re.length; i++, n++) {
@@ -91,6 +106,8 @@ class WifiSignal extends SignalSource {
         offsetHz: spec.offsetHz,
         bandwidthHz: param('bandwidth', 16.6e6) * bandwidthScale,
         sampleRate: sampleRate,
-        rng: rng);
+        rng: rng,
+        bump: param('bump', 0) > 0,
+        notch: param('notch', 0));
   }
 }
