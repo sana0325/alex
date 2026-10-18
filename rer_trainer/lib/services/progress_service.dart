@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Локальне збереження результатів тестів і помилок за темами.
 class ProgressService extends ChangeNotifier {
   ProgressService._(this._prefs) {
-    final raw = _prefs.getString(_key);
+    final raw = _prefs?.getString(_key);
     if (raw != null) {
       try {
         _parse(raw);
@@ -37,10 +37,18 @@ class ProgressService extends ChangeNotifier {
 
   static const _key = 'progress_v1';
 
-  static Future<ProgressService> load() async =>
-      ProgressService._(await SharedPreferences.getInstance());
+  /// Якщо сховище недоступне, застосунок працює без збереження прогресу.
+  static Future<ProgressService> load() async {
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance();
+    } catch (e) {
+      debugPrint('Сховище прогресу недоступне: $e');
+    }
+    return ProgressService._(prefs);
+  }
 
-  final SharedPreferences _prefs;
+  final SharedPreferences? _prefs;
   final Map<String, int> _best = {};
   final Map<String, int> _mistakes = {};
   final Map<String, int> _attempts = {};
@@ -80,7 +88,9 @@ class ProgressService extends ChangeNotifier {
     await _save();
   }
 
-  Future<void> _save() => _prefs.setString(
+  Future<void> _save() async {
+    try {
+      await _prefs?.setString(
         _key,
         jsonEncode({
           'best': _best,
@@ -90,6 +100,10 @@ class ProgressService extends ChangeNotifier {
           'identCorrect': _identCorrect,
         }),
       );
+    } catch (e) {
+      debugPrint('Не вдалося зберегти прогрес: $e');
+    }
+  }
 
   Future<void> recordQuiz({
     required String moduleId,
@@ -114,6 +128,8 @@ class ProgressService extends ChangeNotifier {
     _identTotal.clear();
     _identCorrect.clear();
     notifyListeners();
-    await _prefs.remove(_key);
+    try {
+      await _prefs?.remove(_key);
+    } catch (_) {}
   }
 }
