@@ -1,0 +1,88 @@
+name: РЕР-Тренажер — збірка
+
+on:
+  push:
+    paths:
+      - 'rer_trainer/**'
+      - '.github/workflows/rer-trainer.yml'
+  pull_request:
+    paths:
+      - 'rer_trainer/**'
+      - '.github/workflows/rer-trainer.yml'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: rer_trainer
+
+jobs:
+  android:
+    name: Аналіз, тести, APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Збірка APK
+        run: flutter build apk --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rer-trainer-android-apk
+          path: rer_trainer/build/app/outputs/flutter-apk/app-release.apk
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build windows --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rer-trainer-windows
+          path: rer_trainer/build/windows/x64/runner/Release/
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Системні залежності
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build linux --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rer-trainer-linux
+          path: rer_trainer/build/linux/x64/release/bundle/
