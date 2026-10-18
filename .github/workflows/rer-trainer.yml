@@ -39,7 +39,7 @@ jobs:
       - name: Збірка APK
         run: flutter build apk --release
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: rer-trainer-android-apk
           path: rer_trainer/build/app/outputs/flutter-apk/app-release.apk
@@ -58,7 +58,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build windows --release
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: rer-trainer-windows
           path: rer_trainer/build/windows/x64/runner/Release/
@@ -82,7 +82,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build linux --release
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         with:
           name: rer-trainer-linux
           path: rer_trainer/build/linux/x64/release/bundle/
