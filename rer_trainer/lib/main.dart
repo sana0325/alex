@@ -1,10 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'app/app.dart';
+import 'services/error_log.dart';
 import 'services/content_service.dart';
 import 'services/progress_service.dart';
 
@@ -56,9 +56,4 @@ class _ErrorText extends StatelessWidget {
 
 /// Записує помилку запуску у тимчасову теку (rer_trainer_error.txt),
 /// щоб її можна було прочитати навіть без вікна.
-void _writeErrorLog(String text) {
-  try {
-    File('${Directory.systemTemp.path}${Platform.pathSeparator}rer_trainer_error.txt')
-        .writeAsStringSync('${DateTime.now()}\n$text\n');
-  } catch (_) {}
-}
+void _writeErrorLog(String text) => writeErrorLog('${DateTime.now()}\n$text\n');
