@@ -374,7 +374,7 @@ def main():
             print('render track', tr['id'], flush=True)
             epic(tr, wav)
         out = os.path.join(OUT, 'm', tr['id'] + '.mp3')
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-af', 'silenceremove=start_periods=1:start_threshold=-50dB,loudnorm=I=-14:TP=-1:LRA=9,afade=t=out:st=0:d=0',
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-af', 'silenceremove=start_periods=1:start_threshold=-50dB,loudnorm=I=-14:TP=-1:LRA=9',
                         '-b:a', '112k', out], check=True)
         man['tracks'].append(tr['id'])
 

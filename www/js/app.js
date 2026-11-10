@@ -165,6 +165,34 @@ function closeOverlay(o) { o = o || overlays[overlays.length - 1]; if (!o) retur
 // кнопка «назад» Android
 window.appBack = () => { if (overlays.length) { closeOverlay(); return true; } if (tab !== 'home' && S.profile) { go('home'); return true; } return false; };
 
+// ---------- ЗВУК З ФАЙЛІВ (нейронний голос + оркестр), запасний варіант — синтез ----------
+const Snd = (() => {
+  const M = window.AUDIO_MANIFEST || null;
+  const music = new Audio(); music.loop = true; music.preload = 'auto';
+  const voice = new Audio(); voice.preload = 'auto';
+  let vol = 0.8, usingSynth = false;
+  const mv = () => vol * 0.75;
+  voice.onended = voice.onerror = () => { music.volume = mv(); };
+  return {
+    get ok() { return !!M; }, M,
+    setVol(v) { vol = v; music.volume = mv(); Audio2.setVolume(v); },
+    music(i) {
+      if (!M || !M.tracks.length) { usingSynth = true; Audio2.playWorkout(i); return; }
+      music.src = 'audio/m/' + M.tracks[((i % M.tracks.length) + M.tracks.length) % M.tracks.length] + '.mp3';
+      music.volume = mv(); music.currentTime = 0; music.play().catch(() => {});
+    },
+    stopMusic() { music.pause(); if (usingSynth) { Audio2.stop(); usingSynth = false; } },
+    get playing() { return !music.paused || usingSynth && !!Audio2.playing; },
+    cue(name, text) {
+      if (!S.settings.voice) return;
+      if (!M) { Voice.say(text); return; }
+      voice.pause(); voice.src = 'audio/c/' + name + '.mp3';
+      music.volume = mv() * 0.3; voice.play().catch(() => { music.volume = mv(); });
+    },
+    stopVoice() { voice.pause(); music.volume = mv(); Voice.stop(); },
+  };
+})();
+
 // ---------- SPLASH ----------
 function splash() {
   app.innerHTML = `<div class="splash">
@@ -178,7 +206,7 @@ function splash() {
       <button class="btn w" id="go">Почати шлях ${I.next.replace('<svg', '<svg width="20"')}</button>
       <p class="dim" style="font-size:11.5px;text-align:center;margin-top:12px">Додаток не замінює консультацію лікаря.</p>
     </div></div>`;
-  $('#go').onclick = () => { Audio2.init(); Audio2.beep('go'); Voice.say('Вітаю, мій друже! Давай створимо твою програму.'); onboarding(0); };
+  $('#go').onclick = () => { Audio2.init(); Audio2.beep('go'); Snd.cue('welcome', CUES.welcome); onboarding(0); };
 }
 
 // ---------- ОНБОРДИНГ ----------
@@ -276,7 +304,7 @@ function finish() {
   S.profile.habits.forEach(h => { if (!S.habitStart[h]) S.habitStart[h] = new Date().toISOString(); });
   if (!S.weights.length || !old) S.weights.push([dkey(), S.profile.w]);
   save(); confetti(); Audio2.beep('go');
-  Voice.say(`${S.profile.name}, твоя програма готова. Почнімо!`);
+  Snd.cue('ready', CUES.ready);
   main('home');
 }
 
@@ -379,25 +407,27 @@ function train() {
     <div class="card sp"><span class="tag">Заминка</span>${W.cool.map(id => exRow(id, '30 с')).join('')}</div>
     <div class="card sp"><span class="tag">🎵 Музика для тренувань</span>
       ${Audio2.TRACKS.map((t, i) => `<button class="chk ${S.settings.track === i ? 'on' : ''}" data-tr="${i}"><i>${S.settings.track === i ? '♪' : ''}</i><span style="text-decoration:none;color:var(--tx)">${t.t} <small class="mut">· ${t.bpm} BPM</small></span></button>`).join('')}
-      <button class="btn ghost sm sp" id="prev">${Audio2.playing ? '■ Зупинити' : '▶ Прослухати'}</button></div>
+      <button class="btn ghost sm sp" id="prev">${Snd.playing ? '■ Зупинити' : '▶ Прослухати'}</button></div>
     <p class="dim" style="font-size:12px;margin-top:14px;text-align:center">Програма прогресує: кожні 2 тижні час роботи зростає. Тиждень ${weekNo() + 1}.</p>`;
   bindHeader();
   document.querySelectorAll('.week button').forEach(b => b.onclick = () => { selDay = +b.dataset.d; train(); });
   document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => exInfo(b.dataset.ex));
-  document.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => { S.settings.track = +b.dataset.tr; save(); if (Audio2.playing) Audio2.playWorkout(S.settings.track); train(); });
-  $('#prev').onclick = () => { if (Audio2.playing) Audio2.stop(); else Audio2.playWorkout(S.settings.track); train(); };
-  $('#st').onclick = () => { Audio2.stop(); startWorkout(W); };
+  document.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => { S.settings.track = +b.dataset.tr; save(); if (Snd.playing) Snd.music(S.settings.track); train(); });
+  $('#prev').onclick = () => { if (Snd.playing) Snd.stopMusic(); else Snd.music(S.settings.track); train(); };
+  $('#st').onclick = () => { Snd.stopMusic(); startWorkout(W); };
 }
 const exRow = (id, d) => `<button class="exl" data-ex="${id}" style="width:100%;text-align:left"><div class="em">${EX[id].e}</div><div style="flex:1"><b>${EX[id].n}</b><small>${EX[id].m}</small></div><span class="pill">${d}</span></button>`;
 function exInfo(id) {
   const e = EX[id];
   const o = overlay(`<div class="in"><div class="row between"><span class="tag">${e.m}</span><button class="ic" id="cx">${I.x}</button></div>
-    <div style="font-size:96px;text-align:center;margin:30px 0;animation:pulse 1.4s infinite">${e.e}</div>
+    <div class="figbox" id="fgx"></div>
     <div class="h" style="font-size:28px">${e.n}</div><p style="font-size:17px;margin-top:12px">${e.d}</p>
     <div class="row sp" style="flex-wrap:wrap;gap:8px"><span class="pill">Інтенсивність ${'●'.repeat(e.i)}${'○'.repeat(3 - e.i)}</span>${e.j ? '<span class="pill">Стрибки</span>' : '<span class="pill">Без стрибків</span>'}</div>
     <button class="btn ghost w sp" id="say">${I.voice.replace('<svg', '<svg width="20"')} Прослухати техніку</button></div>`);
-  $('#cx', o).onclick = () => { Voice.stop(); closeOverlay(o); };
-  $('#say', o).onclick = () => Voice.say(e.n + '. ' + e.d);
+  const fig = Figure.mount($('#fgx', o), id);
+  o._onclose = () => { fig.stop(); Snd.stopVoice(); };
+  $('#cx', o).onclick = () => closeOverlay(o);
+  $('#say', o).onclick = () => { const v = S.settings.voice; S.settings.voice = true; Snd.cue('ex_' + id + '_how', e.n + '. ' + e.d); S.settings.voice = v; };
 }
 
 // ---------- ПЛЕЄР ТРЕНУВАННЯ ----------
@@ -407,31 +437,33 @@ function startWorkout(W) {
   const cols = {prep:'var(--sun)', warm:'var(--cyan)', work:W.color, rest:'var(--vio)', cool:'var(--cyan)'};
   const o = overlay(`<div class="in player"><div class="row between"><button class="ic" id="cx">${I.x}</button>
       <span class="tag" id="ph"></span><div class="row" style="gap:8px"><button class="ic" id="mu"></button><button class="ic" id="vo"></button></div></div>
-    <div class="phase" id="pn" style="margin-top:14px"></div>
-    <div class="ptimer"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" stroke="rgba(255,255,255,.08)" stroke-width="6" fill="none"/><circle id="rc" cx="50" cy="50" r="45" stroke-width="6" fill="none" stroke-linecap="round" stroke-dasharray="282.7"/></svg>
-      <div class="c"><div class="em" id="em"></div><div class="h t" id="tm"></div></div></div>
-    <div class="h" id="nm" style="font-size:24px;text-align:center"></div><p class="mut" id="ds" style="text-align:center;margin-top:6px;font-size:14px;min-height:40px"></p>
+    <div class="figbox" id="fg"></div>
+    <div class="tline"><span class="phase" id="pn"></span><span class="h" id="tm" style="font-size:54px"></span><span class="mut" style="font-weight:800">сек</span></div>
+    <div class="seek" style="height:8px;margin-top:2px"><i id="rc" style="width:0"></i></div>
+    <div class="h" id="nm" style="font-size:22px;text-align:center;margin-top:12px"></div><p class="mut" id="ds" style="text-align:center;margin-top:6px;font-size:14px;min-height:40px"></p>
     <div class="nextup" id="nu"></div>
     <div class="bar" style="margin:16px 0 18px"><i id="tp" style="background:linear-gradient(90deg,var(--lime),var(--cyan));width:0"></i></div>
     <div class="pctl"><button class="ic" id="pv">${I.prev}</button><button class="ic main" id="pp">${I.pause}</button><button class="ic" id="nx">${I.next}</button></div></div>`);
   const setIcons = () => { $('#mu', o).innerHTML = S.settings.music ? I.music : I.mute; $('#vo', o).innerHTML = S.settings.voice ? I.voice : I.novoice; };
   setIcons(); keepAwake(true); Voice.enabled = S.settings.voice;
-  if (S.settings.music) Audio2.playWorkout(S.settings.track);
+  if (S.settings.music) Snd.music(S.settings.track);
+  let fig = null, figId = null;
   function show(announce) {
     const s = segs[i], e = EX[s.id], nxt = segs.slice(i + 1).find(x => x.k !== 'rest');
     $('#ph', o).textContent = s.round ? `Коло ${s.round} / ${W.rounds}` : names[s.k];
     $('#pn', o).textContent = names[s.k]; $('#pn', o).style.color = cols[s.k];
-    $('#em', o).textContent = s.k === 'rest' ? '😮‍💨' : e.e;
+    if (figId !== s.id) { fig && fig.stop(); fig = Figure.mount($('#fg', o), s.id, {speed: s.k === 'rest' ? .6 : 1}); figId = s.id; }
+    $('#fg', o).style.opacity = s.k === 'rest' ? .45 : 1;
     $('#nm', o).textContent = s.k === 'rest' ? 'Далі: ' + e.n : e.n;
     $('#ds', o).textContent = s.k === 'rest' ? 'Відновлюй дихання. Вода — маленькими ковтками.' : e.d;
-    $('#rc', o).style.stroke = cols[s.k];
+    $('#rc', o).style.background = cols[s.k];
     $('#nu', o).innerHTML = nxt ? `<span style="font-size:28px">${EX[nxt.id].e}</span><div><small class="mut">Наступна</small><div><b>${EX[nxt.id].n}</b></div></div><span class="pill" style="margin-left:auto">${nxt.d} с</span>` : '<b>🏁 Фініш близько!</b>';
     tick(true);
     if (announce) {
-      if (s.k === 'rest') Voice.say('Відпочинок. Далі — ' + e.n);
-      else if (s.k === 'prep') Voice.say('Приготуйся. Починаємо з розминки.');
-      else if (s.k === 'work') { Voice.say(e.n + '. Вперед!'); Audio2.beep('go'); vib(200); }
-      else Voice.say(e.n);
+      if (s.k === 'rest') Snd.cue('ex_' + s.id + '_next', 'Відпочинок. Далі — ' + e.n);
+      else if (s.k === 'prep') Snd.cue('prep', CUES.prep);
+      else if (s.k === 'work') { Snd.cue('ex_' + s.id + '_go', e.n + '. Вперед!'); Audio2.beep('go'); vib(200); }
+      else Snd.cue('ex_' + s.id + '_name', e.n);
     }
   }
   function tick(noDec) {
@@ -439,18 +471,18 @@ function startWorkout(W) {
     const s = segs[i];
     if (left <= 0) { if (i < segs.length - 1) { i++; left = segs[i].d; show(true); return; } finishW(); return; }
     if (!noDec && left <= 3) { Audio2.beep('tick'); vib(40); }
-    if (!noDec && s.k === 'work' && left === Math.floor(s.d / 2) && s.d >= 30) Voice.say('Половина! Тримайся!');
+    if (!noDec && s.k === 'work' && left === Math.floor(s.d / 2) && s.d >= 30) Snd.cue('half', CUES.half);
     $('#tm', o).textContent = left;
-    $('#rc', o).style.strokeDashoffset = 282.7 * (1 - left / s.d);
+    $('#rc', o).style.width = (100 * (1 - left / s.d)) + '%';
     const done = segs.slice(0, i).reduce((a, x) => a + x.d, 0) + (s.d - left), tot = segs.reduce((a, x) => a + x.d, 0);
     $('#tp', o).style.width = (done / tot * 100) + '%';
   }
   function loop() { clearInterval(timer); timer = setInterval(() => { if (!paused) tick(); }, 1000); }
   function finishW() {
-    clearInterval(timer); Audio2.stop(); keepAwake(false); window.appPause = null;
+    clearInterval(timer); Snd.stopMusic(); fig && fig.stop(); keepAwake(false); window.appPause = null;
     const kc = wKcal(W), mins = Math.round((Date.now() - startT) / 60000), t = today();
     t.done = true; t.kcal = (t.kcal || 0) + kc; save();
-    confetti(); Audio2.beep('go'); Voice.say(`Чудова робота, ${S.profile.name}! Тренування завершено.`);
+    confetti(); Audio2.beep('go'); Snd.cue('finish', CUES.finish);
     $('.in', o).innerHTML = `<div style="flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center">
       <div style="font-size:90px">🏆</div><div class="h" style="font-size:36px;margin-top:10px">Виконано!</div>
       <p class="mut" style="margin-top:8px">Ще один голос за нову версію тебе.</p>
@@ -459,14 +491,14 @@ function startWorkout(W) {
       <button class="btn w sp" id="ok">Готово</button></div>`;
     $('#ok', o).onclick = () => { closeOverlay(o); main(tab); };
   }
-  o._onclose = () => { clearInterval(timer); Audio2.stop(); Voice.stop(); keepAwake(false); window.appPause = null; };
+  o._onclose = () => { clearInterval(timer); Snd.stopMusic(); Snd.stopVoice(); fig && fig.stop(); keepAwake(false); window.appPause = null; };
   window.appPause = () => { if (!paused) $('#pp', o).click(); };
   $('#cx', o).onclick = () => closeOverlay(o);
   $('#pp', o).onclick = () => { paused = !paused; $('#pp', o).innerHTML = paused ? I.play : I.pause;
-    if (paused) { Audio2.stop(); Voice.stop(); } else if (S.settings.music) Audio2.playWorkout(S.settings.track); };
+    if (paused) { Snd.stopMusic(); Snd.stopVoice(); } else if (S.settings.music) Snd.music(S.settings.track); };
   $('#nx', o).onclick = () => { if (i < segs.length - 1) { i++; left = segs[i].d; show(true); } else finishW(); };
   $('#pv', o).onclick = () => { if (i > 0) i--; left = segs[i].d; show(true); };
-  $('#mu', o).onclick = () => { S.settings.music = !S.settings.music; save(); setIcons(); S.settings.music && !paused ? Audio2.playWorkout(S.settings.track) : Audio2.stop(); };
+  $('#mu', o).onclick = () => { S.settings.music = !S.settings.music; save(); setIcons(); S.settings.music && !paused ? Snd.music(S.settings.track) : Snd.stopMusic(); };
   $('#vo', o).onclick = () => { S.settings.voice = !S.settings.voice; save(); Voice.enabled = S.settings.voice; setIcons(); };
   show(true); loop();
 }
@@ -573,66 +605,110 @@ function openSOS() {
   $('#ses', o).onclick = () => { closeOverlay(o); playSession(SESSIONS.find(s => s.id === 'craving')); };
 }
 
-// ---------- РОЗУМ: сеанси + книги ----------
+// ---------- РОЗУМ: гіпнотерапія, практики, аудіокниги ----------
+const ttl = s => { const x = s.replace('Гіпноз: ', ''); return x[0].toUpperCase() + x.slice(1); };
+const fmt = t => `${Math.floor(t / 60)}:${pad(Math.floor(t % 60))}`;
+function sessCard(s) {
+  const d = Snd.ok && Snd.M.sessions[s.id] ? ' · ' + Math.round(Snd.M.sessions[s.id].dur / 60) + ' хв' : '';
+  return `<button class="sess" data-s="${s.id}"><div class="sw" style="background:radial-gradient(circle at 30% 30%,${s.c},#0000 75%),var(--card2)">${I.play.replace('<svg', '<svg width="22" style="color:#fff"')}</div>
+    <div style="flex:1"><b class="h7" style="font-size:15.5px">${ttl(s.t)}</b><div class="mut" style="font-size:13px">${s.sub.split(' · ')[0]}${d} · ${s.voice === 'f' ? 'жіночий голос' : 'чоловічий голос'}</div></div></button>`;
+}
 function mind() {
-  $('#sc').innerHTML = header('Розум', 'Сеанси · Книги') + `
-    <div class="card sp" style="background:linear-gradient(135deg,rgba(61,245,255,.18),rgba(139,92,255,.2)),var(--card)">
-      <span class="tag">🎻 Сеанси самонавіювання</span><p class="mut" style="margin-top:6px;font-size:14px">Голос веде тебе під симфонічну музику. Використовуй навушники, сядь або ляж. Не слухай за кермом.</p></div>
-    ${SESSIONS.map(s => `<button class="sess" data-s="${s.id}"><div class="sw" style="background:radial-gradient(circle at 30% 30%,${s.c},#0000 75%),var(--card2)">${I.play.replace('<svg', '<svg width="22" style="color:#fff"')}</div>
-      <div style="flex:1"><b class="h7" style="font-size:16px">${s.t}</b><div class="mut" style="font-size:13px">${s.sub}</div></div></button>`).join('')}
-    <div class="row between" style="margin-top:26px"><div class="h" style="font-size:22px">Бібліотека</div><span class="tag">${I.book.replace('<svg', '<svg width="16"')} ${BOOKS.length} книги</span></div>
-    <div class="bento">${BOOKS.map(b => `<button class="book" data-b="${b.id}" style="background:linear-gradient(160deg,${b.c}40,transparent 70%),var(--card)"><span class="e">${b.e}</span><div><b class="h7" style="font-size:15px;line-height:1.2;display:block">${b.t}</b><small class="mut">${b.ch.length} розділи</small></div></button>`).join('')}</div>
-    <div class="card sp"><span class="tag">Рекомендуємо прочитати</span>${READLIST.map(([t, a, d]) => `<div class="exl"><div class="em">📖</div><div><b>${t}</b><small>${a} · ${d}</small></div></div>`).join('')}</div>
-    <div class="card sp"><span class="tag">🎵 Лише музика</span><div class="row" style="flex-wrap:wrap;gap:8px;margin-top:10px">
-      ${[['dawn','Світанок'],['deep','Глибина'],['hero','Герой'],['night','Зоряна ніч']].map(([k, n]) => `<button class="btn ghost sm" data-m="${k}">${n}</button>`).join('')}
-      <button class="btn ghost sm" id="ms">■</button></div></div>`;
+  const hy = SESSIONS.filter(s => s.hypno), pr = SESSIONS.filter(s => !s.hypno);
+  $('#sc').innerHTML = header('Розум', 'Гіпнотерапія · Практики · Аудіокниги') + `
+    <div class="card sp" style="background:linear-gradient(135deg,rgba(61,245,255,.16),rgba(139,92,255,.28)),var(--card)">
+      <span class="tag">🌀 Гіпнотерапія</span>
+      <p style="margin-top:8px;font-size:14px">Повні сеанси самогіпнозу: занурення в транс, сходи вглиб, навіювання, якір і вихід. Голос веде тебе під оркестрову музику.</p>
+      <p class="mut" style="margin-top:6px;font-size:12.5px">🎧 Навушники · сядь або ляж · не слухай за кермом. При епілепсії, психозі чи важкій депресії — спершу порадься з лікарем.</p></div>
+    ${hy.map(sessCard).join('')}
+    <div class="h" style="font-size:20px;margin-top:24px">Короткі практики</div>
+    ${pr.map(sessCard).join('')}
+    <div class="row between" style="margin-top:26px"><div class="h" style="font-size:20px">Аудіокниги</div><span class="tag">${I.book.replace('<svg', '<svg width="16"')} ${BOOKS.length}</span></div>
+    <div class="bento">${BOOKS.map(b => `<button class="book" data-b="${b.id}" style="background:linear-gradient(160deg,${b.c}40,transparent 70%),var(--card)"><span class="e">${b.e}</span><div><b class="h7" style="font-size:15px;line-height:1.2;display:block">${b.t}</b><small class="mut">${b.ch.length} розділи${Snd.ok ? ' · 🎧 ' + Math.round(Snd.M.books[b.id].reduce((x, y) => x + y, 0) / 60) + ' хв' : ''}</small></div></button>`).join('')}</div>
+    <div class="card sp"><span class="tag">Рекомендуємо прочитати</span>${READLIST.map(([t, a, d]) => `<div class="exl"><div class="em">📖</div><div><b>${t}</b><small>${a} · ${d}</small></div></div>`).join('')}</div>`;
   bindHeader();
   document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => playSession(SESSIONS.find(s => s.id === b.dataset.s)));
   document.querySelectorAll('[data-b]').forEach(b => b.onclick = () => openBook(BOOKS.find(x => x.id === b.dataset.b)));
-  document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { Audio2.playAmbient(b.dataset.m); toast('♪ ' + b.textContent); });
-  $('#ms').onclick = () => Audio2.stop();
 }
+
+// аудіоплеєр для сеансів і книг
+function mediaPlayer(o, src, onTime, onEnd) {
+  const au = new Audio(src); au.preload = 'auto'; au.volume = Math.min(1, S.settings.vol + 0.2);
+  const pp = $('#pp', o), bar = $('#sp', o), tm = $('#tt', o);
+  const upd = () => { if (au.duration) { bar.style.width = (au.currentTime / au.duration * 100) + '%'; tm.textContent = fmt(au.currentTime) + ' / ' + fmt(au.duration); } onTime && onTime(au.currentTime); };
+  au.ontimeupdate = upd;
+  au.onplay = () => pp.innerHTML = I.pause; au.onpause = () => pp.innerHTML = I.play;
+  au.onended = () => { pp.innerHTML = I.play; onEnd && onEnd(); };
+  au.onerror = () => { tm.textContent = 'Не вдалося відкрити аудіо'; };
+  pp.onclick = () => au.paused ? au.play().catch(() => {}) : au.pause();
+  $('#sk', o).onclick = e => { const r = e.currentTarget.getBoundingClientRect(); if (au.duration) au.currentTime = (e.clientX - r.left) / r.width * au.duration; };
+  $('#rw', o).onclick = () => au.currentTime = Math.max(0, au.currentTime - 15);
+  $('#fw', o).onclick = () => au.currentTime = Math.min(au.duration || 0, au.currentTime + 15);
+  au.play().catch(() => {});
+  return au;
+}
+const ctlHtml = `<div class="seek" id="sk"><i id="sp" style="width:0;background:linear-gradient(90deg,var(--cyan),var(--vio))"></i></div>
+  <div class="row between" style="margin-top:6px"><small class="mut" id="tt">0:00</small><small class="mut">±15 с</small></div>
+  <div class="pctl" style="margin-top:14px"><button class="ic" id="rw">${I.prev}</button><button class="ic main" id="pp">${I.pause}</button><button class="ic" id="fw">${I.next}</button></div>`;
+
 function playSession(s) {
-  let idx = 0, running = true, to = null;
-  const o = overlay(`<div class="in player" style="text-align:center"><div class="row between"><button class="ic" id="cx">${I.x}</button><span class="tag">${s.sub}</span><span style="width:44px"></span></div>
-    <div class="h" style="font-size:26px;margin-top:14px">${s.t}</div>
-    <div class="orb" style="--oc:${s.c}"></div>
-    <div class="sub" id="sb">Знайди зручне положення…</div>
-    <div class="bar" style="margin:18px 0"><i id="sp" style="width:0;background:${s.c}"></i></div>
-    ${Voice.hasUk ? '' : '<p class="dim" style="font-size:12px">Немає українського голосу в системі — читай субтитри або встанови український голос у налаштуваннях синтезу мовлення телефону.</p>'}
-    <div class="pctl"><button class="ic main" id="pp">${I.pause}</button></div></div>`);
-  Audio2.playAmbient(s.mood); keepAwake(true); Voice.enabled = true;
+  const meta = Snd.ok && Snd.M.sessions[s.id];
+  const o = overlay(`<div class="in player" style="text-align:center"><div class="row between"><button class="ic" id="cx">${I.x}</button><span class="tag">${s.hypno ? '🌀 Гіпнотерапія' : 'Практика'}</span><span style="width:44px"></span></div>
+    <div class="h" style="font-size:24px;margin-top:12px">${ttl(s.t)}</div>
+    <div class="orb" style="--oc:${s.c};margin:22px auto 14px"></div>
+    <div class="sub" id="sb">${meta ? 'Влаштуйся зручно…' : 'Знайди зручне положення…'}</div>
+    <div style="margin-top:auto">${meta ? ctlHtml : `<div class="bar" style="margin:18px 0"><i id="sp" style="width:0;background:${s.c}"></i></div><div class="pctl"><button class="ic main" id="pp">${I.pause}</button></div>`}</div></div>`);
   const sub = $('#sb', o);
+  const show = txt => { if (sub.dataset.t === txt) return; sub.dataset.t = txt; sub.style.opacity = 0; setTimeout(() => { sub.textContent = txt; sub.style.opacity = 1; }, 350); };
+  if (meta) {
+    const L = meta.lines;
+    const au = mediaPlayer(o, 'audio/s/' + s.id + '.mp3', t => {
+      let cur = null; for (const l of L) { if (t >= l[0] - .2) cur = l; else break; }
+      show(cur ? cur[2] : 'Влаштуйся зручно…');
+    }, () => { show('✨ Сеанс завершено'); });
+    o._onclose = () => { au.pause(); au.src = ''; };
+    $('#cx', o).onclick = () => closeOverlay(o);
+    return;
+  }
+  // запасний варіант: синтез мовлення
+  let idx = 0, running = true, to = null;
+  Audio2.playAmbient(s.mood); keepAwake(true); Voice.enabled = true;
   function next() {
     if (!running) return;
-    if (idx >= s.lines.length) { sub.textContent = '✨ Сеанс завершено'; setTimeout(() => { if (running) Audio2.stop(); }, 8000); return; }
-    const [txt, pause] = s.lines[idx]; sub.style.opacity = 0;
-    setTimeout(() => { sub.textContent = txt; sub.style.opacity = 1; }, 400);
+    if (idx >= s.lines.length) { show('✨ Сеанс завершено'); setTimeout(() => { if (running) Audio2.stop(); }, 8000); return; }
+    const [txt, pause] = s.lines[idx]; show(txt);
     $('#sp', o).style.width = ((idx + 1) / s.lines.length * 100) + '%';
     Voice.say(txt, () => { if (running) to = setTimeout(next, pause * 1000); }, {rate:0.82, pitch:0.95});
     idx++;
   }
   to = setTimeout(next, 3500);
-  o._onclose = () => { running = false; clearTimeout(to); Voice.stop(); Audio2.stop(); keepAwake(false); Voice.enabled = S.settings.voice; window.appPause = null; };
-  window.appPause = () => { if (running) $('#pp', o).click(); };
+  o._onclose = () => { running = false; clearTimeout(to); Voice.stop(); Audio2.stop(); keepAwake(false); Voice.enabled = S.settings.voice; };
   $('#cx', o).onclick = () => closeOverlay(o);
   $('#pp', o).onclick = () => { running = !running; $('#pp', o).innerHTML = running ? I.pause : I.play;
     if (running) { Audio2.playAmbient(s.mood); idx = Math.max(0, idx - 1); next(); } else { clearTimeout(to); Voice.stop(); Audio2.stop(); } };
 }
-function openBook(b, ci = 0) {
+
+function openBook(b, ci = 0, autoplay = false) {
   const [t, txt] = b.ch[ci];
-  const o = overlay(`<div class="in reader"><div class="row between"><button class="ic" id="cx">${I.back}</button><span class="tag">${b.t} · ${ci + 1}/${b.ch.length}</span><button class="ic" id="rd">${I.voice}</button></div>
-    <div style="font-size:54px;margin-top:22px">${b.e}</div><div class="h" style="font-size:28px;margin-top:10px">${t}</div>
-    ${txt.split(/(?<=\.)\s(?=[А-ЯІЇЄҐA-Z])/).reduce((a, s, i) => { const k = Math.floor(i / 3); a[k] = (a[k] || '') + s + ' '; return a; }, []).map(p => `<p>${p}</p>`).join('')}
+  const audio = Snd.ok && Snd.M.books[b.id];
+  const o = overlay(`<div class="in reader"><div class="row between"><button class="ic" id="cx">${I.back}</button><span class="tag">${b.t} · ${ci + 1}/${b.ch.length}</span><span style="width:44px"></span></div>
+    <div style="font-size:50px;margin-top:18px">${b.e}</div><div class="h" style="font-size:27px;margin-top:8px">${t}</div>
+    ${audio ? `<div class="card sp" id="apl" style="${autoplay ? '' : 'display:none'}">${ctlHtml}</div>
+      <button class="btn vio w sp" id="lis" style="${autoplay ? 'display:none' : ''}">🎧 Слухати аудіокнигу</button>` : `<button class="btn ghost w sp" id="rd">${I.voice.replace('<svg', '<svg width="20"')} Прочитати вголос</button>`}
+    ${txt.split(/(?<=\.)\s(?=[А-ЯІЇЄҐA-Z])/).reduce((acc, s, i) => { const k = Math.floor(i / 3); acc[k] = (acc[k] || '') + s + ' '; return acc; }, []).map(p => `<p>${p}</p>`).join('')}
     <div class="row sp" style="gap:10px;margin-top:30px">${ci > 0 ? `<button class="btn ghost" id="pv" style="flex:1">← Назад</button>` : ''}
     ${ci < b.ch.length - 1 ? `<button class="btn" id="nx" style="flex:1">Далі →</button>` : `<button class="btn" id="fin" style="flex:1">Завершити ✓</button>`}</div></div>`);
-  o._onclose = () => { Voice.stop(); Voice.enabled = S.settings.voice; };
+  let au = null;
+  const start = () => { $('#apl', o).style.display = ''; $('#lis', o).style.display = 'none';
+    au = mediaPlayer(o, `audio/b/${b.id}_${ci}.mp3`, null, () => { if (ci < b.ch.length - 1) { closeOverlay(o); openBook(b, ci + 1, true); } else { toast('Аудіокнигу завершено 📚'); } }); };
+  if (audio) { $('#lis', o).onclick = start; if (autoplay) start(); }
+  else { let reading = false; $('#rd', o).onclick = () => { Voice.enabled = true; if (reading) { Voice.stop(); reading = false; return; } reading = true; Voice.say(t + '. ' + txt, () => reading = false, {rate:0.9}); }; }
+  o._onclose = () => { if (au) { au.pause(); au.src = ''; } Voice.stop(); Voice.enabled = S.settings.voice; };
   $('#cx', o).onclick = () => closeOverlay(o);
-  let reading = false;
-  $('#rd', o).onclick = () => { Voice.enabled = true; if (reading) { Voice.stop(); reading = false; return; } reading = true; Voice.say(t + '. ' + txt, () => reading = false, {rate:0.9}); };
   const nx = $('#nx', o), pv = $('#pv', o), fin = $('#fin', o);
-  if (nx) nx.onclick = () => { closeOverlay(o); openBook(b, ci + 1); };
-  if (pv) pv.onclick = () => { closeOverlay(o); openBook(b, ci - 1); };
+  const playing = () => au && !au.paused;
+  if (nx) nx.onclick = () => { const p = playing(); closeOverlay(o); openBook(b, ci + 1, p); };
+  if (pv) pv.onclick = () => { const p = playing(); closeOverlay(o); openBook(b, ci - 1, p); };
   if (fin) fin.onclick = () => { closeOverlay(o); confetti(); toast('Книгу прочитано 📚'); };
 }
 
@@ -654,8 +730,8 @@ function openProfile() {
   $('#cx', o).onclick = () => closeOverlay(o);
   $('#tm', o).onclick = e => { S.settings.music = !S.settings.music; e.target.classList.toggle('on'); save(); };
   $('#tv', o).onclick = e => { S.settings.voice = !S.settings.voice; Voice.enabled = S.settings.voice; e.target.classList.toggle('on'); save(); };
-  $('#vl', o).oninput = e => { S.settings.vol = +e.target.value; Audio2.setVolume(S.settings.vol); save(); };
-  $('#tst', o).onclick = () => { Voice.enabled = true; Voice.say('Вітаю, мій друже! Голос працює.'); Voice.enabled = S.settings.voice; };
+  $('#vl', o).oninput = e => { S.settings.vol = +e.target.value; Snd.setVol(S.settings.vol); save(); };
+  $('#tst', o).onclick = () => { const v = S.settings.voice; S.settings.voice = true; Snd.cue('welcome', CUES.welcome); S.settings.voice = v; };
   $('#ed', o).onclick = () => { closeOverlay(o); draft._loaded = false; onboarding(0); };
   let armed = false;
   $('#rs', o).onclick = e => { if (!armed) { armed = true; e.target.textContent = 'Натисни ще раз для підтвердження'; return; }
@@ -665,4 +741,4 @@ function openProfile() {
 // ---------- старт ----------
 Audio2.setVolume && (function(){ try { Voice.enabled = S.settings.voice; } catch (e) {} })();
 if (S.profile) main('home'); else splash();
-document.addEventListener('click', () => { Audio2.init(); try { Audio2.setVolume(S.settings.vol); } catch (e) {} }, {once:true});
+document.addEventListener('click', () => { Audio2.init(); try { Snd.setVol(S.settings.vol); } catch (e) {} }, {once:true});

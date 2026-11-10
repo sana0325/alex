@@ -131,6 +131,10 @@ nav button.on svg{color:var(--lime);filter:drop-shadow(0 0 8px var(--lime))}
 .ov .in{flex:1;overflow-y:auto;padding:calc(16px + var(--sat)) 20px calc(24px + var(--sab));max-width:560px;width:100%;margin:0 auto;scrollbar-width:none}
 @keyframes fade{from{opacity:0}}
 .player{display:flex;flex-direction:column;height:100%}
+.figbox{height:min(34vh,290px);margin:6px -6px 0;border-radius:28px;background:radial-gradient(80% 70% at 50% 60%,rgba(139,92,255,.22),transparent 70%)}
+.tline{display:flex;align-items:baseline;justify-content:center;gap:10px;margin-top:4px}
+.seek{height:10px;border-radius:9px;background:var(--card2);overflow:hidden;cursor:pointer;margin-top:8px}
+.seek i{display:block;height:100%;border-radius:9px}
 .ptimer{position:relative;width:min(72vw,300px);aspect-ratio:1;margin:10px auto}
 .ptimer svg{width:100%;height:100%;transform:rotate(-90deg)}
 .ptimer .c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
@@ -189,6 +193,8 @@ table.food td:last-child{text-align:right;font-weight:800;white-space:nowrap}
 <div id="bg"><i></i><i></i><i></i></div>
 <div id="app"></div>
 <script src="js/data.js"></script>
+<script src="audio/manifest.js" onerror="window.AUDIO_MANIFEST=null"></script>
+<script src="js/figure.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/app.js"></script>
 </body>
