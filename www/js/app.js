@@ -49,6 +49,7 @@ function calc(p) {
   const tdee = bmr * mult;
   let goal = p.goal, note = '';
   if (goal === 'lose' && bmi < 18.5) { goal = 'fit'; note = 'Твій ІМТ нижче норми, тому замість схуднення програма тримає підтримку ваги і набір сили. Порадься з лікарем.'; }
+  else if (goal === 'lose' && p.age < 18) { goal = 'fit'; note = 'До 18 років організм росте, тому програма не урізає калорії: харчування на підтримку, а форму покращуємо тренуваннями.'; }
   let kcal = goal === 'lose' ? tdee * 0.82 : goal === 'gain' ? tdee * 1.1 : tdee;
   const floor = p.sex === 'm' ? 1500 : 1300;
   if (kcal < floor) kcal = Math.min(floor, tdee);
@@ -319,8 +320,9 @@ function home() {
       <div class="card span2"><div class="row between"><span class="tag">💧 Вода · ${(t.water * 0.25).toFixed(2)} / ${c.water} л</span><button class="ic" id="wplus" style="width:38px;height:38px">${I.plus}</button></div>
         <div class="water" id="wat">${Array.from({length:glasses}, (_, i) => `<b class="${i < t.water ? 'f' : ''}" data-i="${i}"></b>`).join('')}</div></div>
       <div class="card span2"><div class="row">
-        <div class="ringwrap">${ring((t.kcal || 0) / c.kcal, 'var(--lime)')}<div class="c"><div><div class="h" style="font-size:22px">${c.kcal}</div><small class="mut">ккал/день</small></div></div></div>
-        <div style="flex:1">${macro('Білки', c.prot, 'var(--coral)')}${macro('Жири', c.fat, 'var(--sun)')}${macro('Вуглеводи', c.carb, 'var(--cyan)')}</div></div></div>
+        <div class="ringwrap">${ring(1, 'var(--lime)')}<div class="c"><div><div class="h" style="font-size:22px">${c.kcal}</div><small class="mut">норма ккал</small></div></div></div>
+        <div style="flex:1">${macro('Білки', c.prot, 'var(--coral)')}${macro('Жири', c.fat, 'var(--sun)')}${macro('Вуглеводи', c.carb, 'var(--cyan)')}</div></div>
+        ${t.kcal ? `<div class="pill" style="display:inline-block;margin-top:6px">🔥 Спалено на тренуваннях сьогодні: ~${t.kcal} ккал</div>` : ''}</div>
     </div>
     ${p.habits.length ? `<div class="card sp"><span class="tag">Шлях свободи</span><div class="row" style="flex-wrap:wrap;gap:10px;margin-top:10px">
       ${p.habits.map(hb => `<div class="pill" style="font-size:14px">${RECOVERY[hb].icon} <b>${daysSince(S.habitStart[hb])}</b> дн.</div>`).join('')}</div></div>` : ''}
@@ -330,7 +332,7 @@ function home() {
   $('#start').onclick = () => W.rest_day ? startWorkout(W) : startWorkout(W);
   $('#quick').onclick = () => startWorkout(buildWorkout(dow() === 6 ? 0 : dow(), true));
   $('#wplus').onclick = () => { t.water++; save(); vib(15); home(); if (t.water === glasses) { toast('💧 Норму води виконано!'); confetti(); } };
-  document.querySelectorAll('#wat b').forEach(b => b.onclick = () => { t.water = +b.dataset.i + 1; save(); home(); });
+  document.querySelectorAll('#wat b').forEach(b => b.onclick = () => { const i = +b.dataset.i; t.water = t.water === i + 1 ? i : i + 1; save(); home(); });
   $('#addw').onclick = addWeight;
 }
 const macro = (n, g, c) => `<div style="margin:4px 0 10px"><div class="row between" style="font-size:13px"><b>${n}</b><span class="mut">${g} г</span></div><div class="bar"><i style="width:100%;background:${c}"></i></div></div>`;
@@ -445,7 +447,7 @@ function startWorkout(W) {
   }
   function loop() { clearInterval(timer); timer = setInterval(() => { if (!paused) tick(); }, 1000); }
   function finishW() {
-    clearInterval(timer); Audio2.stop(); keepAwake(false);
+    clearInterval(timer); Audio2.stop(); keepAwake(false); window.appPause = null;
     const kc = wKcal(W), mins = Math.round((Date.now() - startT) / 60000), t = today();
     t.done = true; t.kcal = (t.kcal || 0) + kc; save();
     confetti(); Audio2.beep('go'); Voice.say(`Чудова робота, ${S.profile.name}! Тренування завершено.`);
@@ -457,7 +459,8 @@ function startWorkout(W) {
       <button class="btn w sp" id="ok">Готово</button></div>`;
     $('#ok', o).onclick = () => { closeOverlay(o); main(tab); };
   }
-  o._onclose = () => { clearInterval(timer); Audio2.stop(); Voice.stop(); keepAwake(false); };
+  o._onclose = () => { clearInterval(timer); Audio2.stop(); Voice.stop(); keepAwake(false); window.appPause = null; };
+  window.appPause = () => { if (!paused) $('#pp', o).click(); };
   $('#cx', o).onclick = () => closeOverlay(o);
   $('#pp', o).onclick = () => { paused = !paused; $('#pp', o).innerHTML = paused ? I.play : I.pause;
     if (paused) { Audio2.stop(); Voice.stop(); } else if (S.settings.music) Audio2.playWorkout(S.settings.track); };
@@ -610,7 +613,8 @@ function playSession(s) {
     idx++;
   }
   to = setTimeout(next, 3500);
-  o._onclose = () => { running = false; clearTimeout(to); Voice.stop(); Audio2.stop(); keepAwake(false); Voice.enabled = S.settings.voice; };
+  o._onclose = () => { running = false; clearTimeout(to); Voice.stop(); Audio2.stop(); keepAwake(false); Voice.enabled = S.settings.voice; window.appPause = null; };
+  window.appPause = () => { if (running) $('#pp', o).click(); };
   $('#cx', o).onclick = () => closeOverlay(o);
   $('#pp', o).onclick = () => { running = !running; $('#pp', o).innerHTML = running ? I.pause : I.play;
     if (running) { Audio2.playAmbient(s.mood); idx = Math.max(0, idx - 1); next(); } else { clearTimeout(to); Voice.stop(); Audio2.stop(); } };
@@ -622,7 +626,7 @@ function openBook(b, ci = 0) {
     ${txt.split(/(?<=\.)\s(?=[А-ЯІЇЄҐA-Z])/).reduce((a, s, i) => { const k = Math.floor(i / 3); a[k] = (a[k] || '') + s + ' '; return a; }, []).map(p => `<p>${p}</p>`).join('')}
     <div class="row sp" style="gap:10px;margin-top:30px">${ci > 0 ? `<button class="btn ghost" id="pv" style="flex:1">← Назад</button>` : ''}
     ${ci < b.ch.length - 1 ? `<button class="btn" id="nx" style="flex:1">Далі →</button>` : `<button class="btn" id="fin" style="flex:1">Завершити ✓</button>`}</div></div>`);
-  o._onclose = () => Voice.stop();
+  o._onclose = () => { Voice.stop(); Voice.enabled = S.settings.voice; };
   $('#cx', o).onclick = () => closeOverlay(o);
   let reading = false;
   $('#rd', o).onclick = () => { Voice.enabled = true; if (reading) { Voice.stop(); reading = false; return; } reading = true; Voice.say(t + '. ' + txt, () => reading = false, {rate:0.9}); };

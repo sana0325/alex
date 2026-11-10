@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
                     @Override public void onStart(String id) {}
                     @Override public void onDone(String id) { done(id); }
                     @Override public void onError(String id) { done(id); }
+                    @Override public void onStop(String id, boolean interrupted) { done(id); }
                 });
             }
         });
@@ -61,7 +62,7 @@ public class MainActivity extends Activity {
             if (!ttsReady) { done(id); return; }
             tts.setSpeechRate(rate);
             tts.setPitch(pitch);
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id);
+            if (tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) done(id);
         }
         @JavascriptInterface
         public void stopSpeak() { if (tts != null) tts.stop(); }
@@ -88,5 +89,6 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onPause() { super.onPause(); web.evaluateJavascript("window.appPause&&window.appPause()", null); }
+    @Override protected void onResume() { super.onResume(); web.evaluateJavascript("(typeof Audio2!=='undefined')&&Audio2.init()", null); }
     @Override protected void onDestroy() { if (tts != null) { tts.stop(); tts.shutdown(); } web.destroy(); super.onDestroy(); }
 }

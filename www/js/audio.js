@@ -225,20 +225,21 @@ const Voice = (() => {
     ukVoice = vs.find(v => /uk/i.test(v.lang)) || vs.find(v => /ru|pl/i.test(v.lang) && false) || null;
   }
   if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
-  window.__ttsDone = id => { const f = cbs[id]; delete cbs[id]; Audio2.duck(false); f && f(); };
+  window.__ttsDone = id => { const f = cbs[id]; delete cbs[id]; if (!Object.keys(cbs).length) Audio2.duck(false); f && f(); };
   function say(text, onEnd, opts = {}) {
     if (!enabled) { onEnd && setTimeout(onEnd, 50); return; }
     const id = 'u' + (++uid); cbs[id] = onEnd;
     Audio2.duck(true);
     const rate = opts.rate || 0.92, pitch = opts.pitch || 1;
-    if (native()) { try { AndroidBridge.speak(text, id, rate, pitch); return; } catch (e) {} }
+    // запобіжник: якщо рушій мовлення не відповів — продовжуємо
+    const guard = () => setTimeout(() => cbs[id] && window.__ttsDone(id), 2500 + text.length * 120);
+    if (native()) { try { AndroidBridge.speak(text, id, rate, pitch); guard(); return; } catch (e) {} }
     if ('speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(text); u.lang = 'uk-UA'; u.rate = rate; u.pitch = pitch;
       if (ukVoice) u.voice = ukVoice;
       u.onend = u.onerror = () => window.__ttsDone(id);
       speechSynthesis.speak(u);
-      // запобіжник, якщо onend не прийде
-      setTimeout(() => cbs[id] && window.__ttsDone(id), 1500 + text.length * 110);
+      guard();
     } else setTimeout(() => window.__ttsDone(id), 800 + text.length * 70);
   }
   function stop() {
