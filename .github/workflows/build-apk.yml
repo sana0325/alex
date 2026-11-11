@@ -65,8 +65,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="fitlife-v1.1.${{ github.run_number }}"
+          TAG="fitlife-v1.2.${{ github.run_number }}"
           gh release create "$TAG" out/FitLife.apk out/FitLife_APK.zip out/audio.zip \
             --target "${{ github.sha }}" \
-            --title "FitLife 1.1 (збірка ${{ github.run_number }})" \
+            --title "FitLife 1.2 (збірка ${{ github.run_number }})" \
             --notes "Встанови FitLife.apk (працює на 32- і 64-бітних Android 7+). Дозволь встановлення з невідомих джерел."

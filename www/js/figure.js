@@ -183,7 +183,7 @@ const Figure = (() => {
     const ease = f => .5 - .5 * Math.cos(Math.PI * f);
     function frame(now) {
       if (stopped) return;
-      const tt = (now - t0) / durMs, i = Math.floor(tt) % n, f = ease(tt % 1);
+      const tt = Math.max(0, (now - t0) / durMs), i = Math.floor(tt) % n, f = ease(tt % 1);
       const a = seq[i], b = def.loop && i === n - 1 ? seq[0] : seq[(i + 1) % n];
       let p = (def.loop && i === n - 1) ? a : lerp(a, b, f);
       let k = kin(p);

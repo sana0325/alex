@@ -169,6 +169,13 @@ window.appBack = () => { if (overlays.length) { closeOverlay(); return true; } i
 const Snd = (() => {
   const M = window.AUDIO_MANIFEST || null;
   const music = new Audio(); music.loop = true; music.preload = 'auto';
+  let webUser = [];   // для браузерної версії (лише до перезавантаження)
+  const userTracks = () => {
+    if (window.AndroidBridge && AndroidBridge.listMusic) { try { return JSON.parse(AndroidBridge.listMusic()); } catch (e) {} }
+    return webUser;
+  };
+  let playlist = [], pi = 0;
+  music.addEventListener('ended', () => { if (playlist.length) { pi = (pi + 1) % playlist.length; music.src = playlist[pi].url; music.play().catch(() => {}); } });
   const voice = new Audio(); voice.preload = 'auto';
   let vol = 0.8, usingSynth = false;
   const mv = () => vol * 0.75;
@@ -176,7 +183,18 @@ const Snd = (() => {
   return {
     get ok() { return !!M; }, M,
     setVol(v) { vol = v; music.volume = mv(); Audio2.setVolume(v); },
+    userTracks, addWeb(files) { for (const f of files) webUser.push({name: f.name, url: URL.createObjectURL(f), size: f.size}); },
     music(i) {
+      if (typeof i === 'string' && i.startsWith('u:')) {
+        const list = userTracks(), k = list.findIndex(t => t.name === i.slice(2));
+        if (k >= 0) {
+          playlist = list.slice(k).concat(list.slice(0, k)); pi = 0;
+          music.loop = playlist.length === 1; music.src = playlist[0].url;
+          music.volume = mv(); music.play().catch(() => toast('Не вдалося відтворити файл')); return;
+        }
+        i = 0;
+      }
+      playlist = []; music.loop = true;
       if (!M || !M.tracks.length) { usingSynth = true; Audio2.playWorkout(i); return; }
       music.src = 'audio/m/' + M.tracks[((i % M.tracks.length) + M.tracks.length) % M.tracks.length] + '.mp3';
       music.volume = mv(); music.currentTime = 0; music.play().catch(() => {});
@@ -192,6 +210,12 @@ const Snd = (() => {
     stopVoice() { voice.pause(); music.volume = mv(); Voice.stop(); },
   };
 })();
+
+window.onMusicAdded = n => {
+  if (!n) { toast('Файли не додано'); return; }
+  const list = Snd.userTracks(); if (list.length) { S.settings.track = 'u:' + list[list.length - 1].name; save(); }
+  toast(`🎧 Додано треків: ${n}`); if (tab === 'train' && !overlays.length) train();
+};
 
 // ---------- SPLASH ----------
 function splash() {
@@ -295,7 +319,7 @@ function stDone() {
     <div class="card"><span class="tag">Білок</span><div class="h big">${c.prot}<small style="font-size:14px"> г</small></div></div>
     <div class="card"><span class="tag">Вода</span><div class="h big">${c.water}<small style="font-size:14px"> л</small></div></div></div>
     ${c.note ? `<div class="warn">${c.note}</div>` : ''}
-    <div class="card sp"><b>Програма включає:</b><p class="mut" style="margin-top:6px">• Тренування вдома 6 днів/тиждень з урахуванням здоров'я<br>• Харчування з порціями в грамах<br>${draft.habits.length ? '• Програму відновлення: ' + draft.habits.map(h => RECOVERY[h].t).join(', ') + '<br>' : ''}• 30-денний психологічний курс<br>• Сеанси розслаблення під симфонічну музику<br>• Бібліотеку</p></div>` };
+    <div class="card sp"><b>Програма включає:</b><p class="mut" style="margin-top:6px">• Тренування вдома 6 днів/тиждень з урахуванням здоров'я<br>• Харчування з порціями в грамах<br>${draft.habits.length ? '• Програму відновлення: ' + draft.habits.map(h => RECOVERY[h].t).join(', ') + '<br>' : ''}• 30-денний психологічний курс<br>• Практики під оркестрову музику<br>• Аудіокниги</p></div>` };
 }
 function finish() {
   const old = S.profile;
@@ -406,13 +430,22 @@ function train() {
     <div class="card sp"><span class="tag">Основна частина × ${W.rounds}</span>${W.exs.map(id => exRow(id, W.work + ' с')).join('')}</div>
     <div class="card sp"><span class="tag">Заминка</span>${W.cool.map(id => exRow(id, '30 с')).join('')}</div>
     <div class="card sp"><span class="tag">🎵 Музика для тренувань</span>
-      ${Audio2.TRACKS.map((t, i) => `<button class="chk ${S.settings.track === i ? 'on' : ''}" data-tr="${i}"><i>${S.settings.track === i ? '♪' : ''}</i><span style="text-decoration:none;color:var(--tx)">${t.t} <small class="mut">· ${t.bpm} BPM</small></span></button>`).join('')}
-      <button class="btn ghost sm sp" id="prev">${Snd.playing ? '■ Зупинити' : '▶ Прослухати'}</button></div>
+      ${Audio2.TRACKS.map((t, i) => `<button class="chk ${S.settings.track === i ? 'on' : ''}" data-tr="${i}"><i>${S.settings.track === i ? '♪' : ''}</i><span style="text-decoration:none;color:var(--tx)">${t.t} <small class="mut">· оркестр</small></span></button>`).join('')}
+      ${Snd.userTracks().map(t => { const k = 'u:' + t.name, on = S.settings.track === k;
+        return `<div class="row" style="border-bottom:1px solid var(--line)"><button class="chk ${on ? 'on' : ''}" data-tr="${esc(k)}" style="border:0;flex:1"><i>${on ? '♪' : ''}</i><span style="text-decoration:none;color:var(--tx);word-break:break-word">🎧 ${esc(t.name.replace(/\.[^.]+$/, ''))}</span></button><button class="ic" data-del="${esc(t.name)}" style="width:36px;height:36px">${I.x}</button></div>`; }).join('')}
+      <div class="row sp" style="gap:8px;flex-wrap:wrap"><button class="btn sm" id="addm">＋ Своя музика</button><button class="btn ghost sm" id="prev">${Snd.playing ? '■ Зупинити' : '▶ Прослухати'}</button></div>
+      <p class="dim" style="font-size:12px;margin-top:8px">Додай свої MP3 з телефону — вони збережуться в додатку. Кілька своїх треків грають по черзі.</p>
+      <input type="file" id="mfile" accept="audio/*" multiple hidden></div>
     <p class="dim" style="font-size:12px;margin-top:14px;text-align:center">Програма прогресує: кожні 2 тижні час роботи зростає. Тиждень ${weekNo() + 1}.</p>`;
   bindHeader();
   document.querySelectorAll('.week button').forEach(b => b.onclick = () => { selDay = +b.dataset.d; train(); });
   document.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => exInfo(b.dataset.ex));
-  document.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => { S.settings.track = +b.dataset.tr; save(); if (Snd.playing) Snd.music(S.settings.track); train(); });
+  document.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => { const v = b.dataset.tr; S.settings.track = v.startsWith('u:') ? v : +v; save(); if (Snd.playing) Snd.music(S.settings.track); train(); });
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const n = b.dataset.del;
+    if (b.dataset.arm) { try { AndroidBridge.deleteMusic(n); } catch (e) {} if (S.settings.track === 'u:' + n) { S.settings.track = 0; save(); Snd.stopMusic(); } train(); }
+    else { b.dataset.arm = 1; b.style.background = 'var(--coral)'; toast('Натисни ще раз, щоб видалити'); } });
+  $('#addm').onclick = () => { if (window.AndroidBridge && AndroidBridge.pickMusic) AndroidBridge.pickMusic(); else $('#mfile').click(); };
+  $('#mfile').onchange = e => { const f = [...e.target.files]; if (!f.length) return; Snd.addWeb(f); window.onMusicAdded(f.length); };
   $('#prev').onclick = () => { if (Snd.playing) Snd.stopMusic(); else Snd.music(S.settings.track); train(); };
   $('#st').onclick = () => { Snd.stopMusic(); startWorkout(W); };
 }
@@ -605,7 +638,7 @@ function openSOS() {
   $('#ses', o).onclick = () => { closeOverlay(o); playSession(SESSIONS.find(s => s.id === 'craving')); };
 }
 
-// ---------- РОЗУМ: гіпнотерапія, практики, аудіокниги ----------
+// ---------- РОЗУМ: практики, аудіокниги ----------
 const ttl = s => { const x = s.replace('Гіпноз: ', ''); return x[0].toUpperCase() + x.slice(1); };
 const fmt = t => `${Math.floor(t / 60)}:${pad(Math.floor(t % 60))}`;
 function sessCard(s) {
@@ -614,15 +647,10 @@ function sessCard(s) {
     <div style="flex:1"><b class="h7" style="font-size:15.5px">${ttl(s.t)}</b><div class="mut" style="font-size:13px">${s.sub.split(' · ')[0]}${d} · ${s.voice === 'f' ? 'жіночий голос' : 'чоловічий голос'}</div></div></button>`;
 }
 function mind() {
-  const hy = SESSIONS.filter(s => s.hypno), pr = SESSIONS.filter(s => !s.hypno);
-  $('#sc').innerHTML = header('Розум', 'Гіпнотерапія · Практики · Аудіокниги') + `
+  $('#sc').innerHTML = header('Розум', 'Практики · Аудіокниги') + `
     <div class="card sp" style="background:linear-gradient(135deg,rgba(61,245,255,.16),rgba(139,92,255,.28)),var(--card)">
-      <span class="tag">🌀 Гіпнотерапія</span>
-      <p style="margin-top:8px;font-size:14px">Повні сеанси самогіпнозу: занурення в транс, сходи вглиб, навіювання, якір і вихід. Голос веде тебе під оркестрову музику.</p>
-      <p class="mut" style="margin-top:6px;font-size:12.5px">🎧 Навушники · сядь або ляж · не слухай за кермом. При епілепсії, психозі чи важкій депресії — спершу порадься з лікарем.</p></div>
-    ${hy.map(sessCard).join('')}
-    <div class="h" style="font-size:20px;margin-top:24px">Короткі практики</div>
-    ${pr.map(sessCard).join('')}
+      <span class="tag">🎻 Практики</span><p style="margin-top:8px;font-size:14px">Короткі сеанси: голос веде тебе під оркестрову музику. Найкраще — у навушниках.</p></div>
+    ${SESSIONS.map(sessCard).join('')}
     <div class="row between" style="margin-top:26px"><div class="h" style="font-size:20px">Аудіокниги</div><span class="tag">${I.book.replace('<svg', '<svg width="16"')} ${BOOKS.length}</span></div>
     <div class="bento">${BOOKS.map(b => `<button class="book" data-b="${b.id}" style="background:linear-gradient(160deg,${b.c}40,transparent 70%),var(--card)"><span class="e">${b.e}</span><div><b class="h7" style="font-size:15px;line-height:1.2;display:block">${b.t}</b><small class="mut">${b.ch.length} розділи${Snd.ok ? ' · 🎧 ' + Math.round(Snd.M.books[b.id].reduce((x, y) => x + y, 0) / 60) + ' хв' : ''}</small></div></button>`).join('')}</div>
     <div class="card sp"><span class="tag">Рекомендуємо прочитати</span>${READLIST.map(([t, a, d]) => `<div class="exl"><div class="em">📖</div><div><b>${t}</b><small>${a} · ${d}</small></div></div>`).join('')}</div>`;
@@ -653,7 +681,7 @@ const ctlHtml = `<div class="seek" id="sk"><i id="sp" style="width:0;background:
 
 function playSession(s) {
   const meta = Snd.ok && Snd.M.sessions[s.id];
-  const o = overlay(`<div class="in player" style="text-align:center"><div class="row between"><button class="ic" id="cx">${I.x}</button><span class="tag">${s.hypno ? '🌀 Гіпнотерапія' : 'Практика'}</span><span style="width:44px"></span></div>
+  const o = overlay(`<div class="in player" style="text-align:center"><div class="row between"><button class="ic" id="cx">${I.x}</button><span class="tag">Практика</span><span style="width:44px"></span></div>
     <div class="h" style="font-size:24px;margin-top:12px">${ttl(s.t)}</div>
     <div class="orb" style="--oc:${s.c};margin:22px auto 14px"></div>
     <div class="sub" id="sb">${meta ? 'Влаштуйся зручно…' : 'Знайди зручне положення…'}</div>

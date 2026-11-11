@@ -1,7 +1,17 @@
 package ua.fitlife.app;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.view.WindowManager;
@@ -16,6 +26,40 @@ public class MainActivity extends Activity {
     private WebView web;
     private TextToSpeech tts;
     private boolean ttsReady = false;
+    private static final int PICK_MUSIC = 4242;
+
+    private File musicDir() { File d = new File(getFilesDir(), "music"); if (!d.exists()) d.mkdirs(); return d; }
+
+    private String nameOf(Uri uri) {
+        String n = null;
+        try (Cursor c = getContentResolver().query(uri, null, null, null, null)) {
+            if (c != null && c.moveToFirst()) { int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME); if (i >= 0) n = c.getString(i); }
+        } catch (Exception ignored) {}
+        if (n == null) n = "track_" + System.currentTimeMillis() + ".mp3";
+        return n.replaceAll("[^\\p{L}\\p{N}._ -]", "_");
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req != PICK_MUSIC || res != RESULT_OK || data == null) return;
+        final java.util.List<Uri> uris = new java.util.ArrayList<>();
+        if (data.getClipData() != null) for (int i = 0; i < data.getClipData().getItemCount(); i++) uris.add(data.getClipData().getItemAt(i).getUri());
+        else if (data.getData() != null) uris.add(data.getData());
+        new Thread(() -> {
+            int ok = 0;
+            for (Uri u : uris) {
+                try (InputStream in = getContentResolver().openInputStream(u);
+                     OutputStream out = new FileOutputStream(new File(musicDir(), nameOf(u)))) {
+                    byte[] buf = new byte[65536]; int r;
+                    while ((r = in.read(buf)) > 0) out.write(buf, 0, r);
+                    ok++;
+                } catch (Exception ignored) {}
+            }
+            final int added = ok;
+            runOnUiThread(() -> web.evaluateJavascript("window.onMusicAdded&&window.onMusicAdded(" + added + ")", null));
+        }).start();
+    }
 
     @Override
     protected void onCreate(Bundle b) {
@@ -28,6 +72,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(true);
+        s.setAllowFileAccessFromFileURLs(true);
         s.setTextZoom(100);
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new WebChromeClient());
@@ -71,6 +116,38 @@ public class MainActivity extends Activity {
             if (!ttsReady) return false;
             int r = tts.isLanguageAvailable(new Locale("uk", "UA"));
             return r >= TextToSpeech.LANG_AVAILABLE;
+        }
+        @JavascriptInterface
+        public void pickMusic() {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("audio/*");
+                i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try { startActivityForResult(i, PICK_MUSIC); }
+                catch (Exception e) {
+                    Intent g = new Intent(Intent.ACTION_GET_CONTENT); g.setType("audio/*"); g.addCategory(Intent.CATEGORY_OPENABLE);
+                    startActivityForResult(Intent.createChooser(g, "Музика"), PICK_MUSIC);
+                }
+            });
+        }
+        @JavascriptInterface
+        public String listMusic() {
+            JSONArray a = new JSONArray();
+            File[] fs = musicDir().listFiles();
+            if (fs != null) {
+                java.util.Arrays.sort(fs, (x, y) -> x.getName().compareToIgnoreCase(y.getName()));
+                for (File f : fs) {
+                    try { JSONObject o = new JSONObject(); o.put("name", f.getName()); o.put("url", Uri.fromFile(f).toString()); o.put("size", f.length()); a.put(o); }
+                    catch (Exception ignored) {}
+                }
+            }
+            return a.toString();
+        }
+        @JavascriptInterface
+        public boolean deleteMusic(String name) {
+            File f = new File(musicDir(), name);
+            return f.getParentFile().equals(musicDir()) && f.delete();
         }
         @JavascriptInterface
         public void keepAwake(final boolean on) {
