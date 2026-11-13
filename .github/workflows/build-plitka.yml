@@ -18,8 +18,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
@@ -39,7 +37,9 @@ jobs:
           fi
 
       - name: Build APK
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle assembleDebug --no-daemon --stacktrace
 
       - name: Rename
         run: cp app/build/outputs/apk/debug/app-debug.apk PlitkaAR.apk
