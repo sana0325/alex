@@ -7,58 +7,68 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
 
-/** 2D overlay: polygon from the placed points, a line to the cursor, and the crosshair. */
+/** One contour on screen: [x0, y0, x1, y1, ...] (NaN = behind camera); cut = subtracted zone. */
+class ScreenPoly(val pts: FloatArray, val cut: Boolean)
+
+/** 2D overlay: zone polygons, a line from the current zone to the cursor, and the crosshair. */
 class OverlayView(context: Context) : View(context) {
-    /** Screen coordinates of placed points: [x0, y0, x1, y1, ...]; NaN means behind the camera. */
-    @Volatile var points: FloatArray = FloatArray(0)
+    @Volatile var polys: List<ScreenPoly> = emptyList()
     @Volatile var cursor: FloatArray? = null
     @Volatile var hasHit: Boolean = false
 
     private val d = resources.displayMetrics.density
-    private val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+    private val lineAdd = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFD600.toInt(); strokeWidth = 4 * d; style = Paint.Style.STROKE
     }
-    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x33FFD600; style = Paint.Style.FILL
+    private val fillAdd = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x33FFD600; style = Paint.Style.FILL }
+    private val lineCut = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFF1744.toInt(); strokeWidth = 4 * d; style = Paint.Style.STROKE
     }
+    private val fillCut = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x55FF1744; style = Paint.Style.FILL }
     private val dashed = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt(); strokeWidth = 3 * d; style = Paint.Style.STROKE
         pathEffect = DashPathEffect(floatArrayOf(12 * d, 8 * d), 0f)
     }
-    private val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD600.toInt() }
+    private val dotAdd = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD600.toInt() }
+    private val dotCut = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFF1744.toInt() }
     private val dotRing = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFF000000.toInt(); style = Paint.Style.STROKE; strokeWidth = 2 * d
     }
-    private val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        strokeWidth = 3 * d; style = Paint.Style.STROKE
-    }
+    private val cross = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeWidth = 3 * d; style = Paint.Style.STROKE }
 
     override fun onDraw(c: Canvas) {
-        val p = points
-        val n = p.size / 2
-        val valid = (0 until n).all { !p[it * 2].isNaN() }
-
-        if (n >= 2 && valid) {
-            val path = Path()
-            path.moveTo(p[0], p[1])
-            for (i in 1 until n) path.lineTo(p[i * 2], p[i * 2 + 1])
-            if (n >= 3) {
-                path.close()
-                c.drawPath(path, fill)
+        val list = polys
+        for (poly in list) {
+            val p = poly.pts
+            val n = p.size / 2
+            val valid = (0 until n).all { !p[it * 2].isNaN() }
+            if (n >= 2 && valid) {
+                val path = Path()
+                path.moveTo(p[0], p[1])
+                for (i in 1 until n) path.lineTo(p[i * 2], p[i * 2 + 1])
+                if (n >= 3) {
+                    path.close()
+                    c.drawPath(path, if (poly.cut) fillCut else fillAdd)
+                }
+                c.drawPath(path, if (poly.cut) lineCut else lineAdd)
             }
-            c.drawPath(path, line)
+            for (i in 0 until n) {
+                if (p[i * 2].isNaN()) continue
+                c.drawCircle(p[i * 2], p[i * 2 + 1], 8 * d, if (poly.cut) dotCut else dotAdd)
+                c.drawCircle(p[i * 2], p[i * 2 + 1], 8 * d, dotRing)
+            }
         }
 
+        // Dashed preview lines for the zone being drawn now (the last one)
         val cur = cursor
-        if (n >= 1 && cur != null && hasHit && !p[(n - 1) * 2].isNaN()) {
-            c.drawLine(p[(n - 1) * 2], p[(n - 1) * 2 + 1], cur[0], cur[1], dashed)
-            if (n >= 2 && !p[0].isNaN()) c.drawLine(cur[0], cur[1], p[0], p[1], dashed)
-        }
-
-        for (i in 0 until n) {
-            if (p[i * 2].isNaN()) continue
-            c.drawCircle(p[i * 2], p[i * 2 + 1], 8 * d, dot)
-            c.drawCircle(p[i * 2], p[i * 2 + 1], 8 * d, dotRing)
+        val last = list.lastOrNull()
+        if (last != null && cur != null && hasHit) {
+            val p = last.pts
+            val n = p.size / 2
+            if (n >= 1 && !p[(n - 1) * 2].isNaN()) {
+                c.drawLine(p[(n - 1) * 2], p[(n - 1) * 2 + 1], cur[0], cur[1], dashed)
+                if (n >= 2 && !p[0].isNaN()) c.drawLine(cur[0], cur[1], p[0], p[1], dashed)
+            }
         }
 
         // Crosshair in the screen centre

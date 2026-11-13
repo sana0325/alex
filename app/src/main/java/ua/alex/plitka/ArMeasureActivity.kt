@@ -38,7 +38,11 @@ class ArMeasureActivity : Activity(), GLSurfaceView.Renderer {
     private var installRequested = false
     private val bg = BackgroundRenderer()
 
-    private val anchors = mutableListOf<Anchor>()
+    /** One measured zone; cut = subtracted (building, flowerbed, well…). */
+    private class Contour(var cut: Boolean, val anchors: MutableList<Anchor> = mutableListOf())
+
+    private val contours = mutableListOf(Contour(false))
+    @Volatile private var newZoneRequest = 0   // 0 = none, 1 = add zone, -1 = cut zone
     @Volatile private var addRequested = false
     @Volatile private var undoRequested = false
     @Volatile private var geometryChanged = true
@@ -47,7 +51,8 @@ class ArMeasureActivity : Activity(), GLSurfaceView.Renderer {
 
     @Volatile private var lastArea = 0.0
     @Volatile private var lastPerimeter = 0.0
-    @Volatile private var pointCount = 0
+    @Volatile private var lastCutPerimeter = 0.0
+    @Volatile private var openZonePoints = 0
     private var lastUiUpdate = 0L
 
     private val viewM = FloatArray(16)
@@ -80,18 +85,27 @@ class ArMeasureActivity : Activity(), GLSurfaceView.Renderer {
         }
         root.addView(info, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
 
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val p = Ui.dp(this@ArMeasureActivity, 8)
+            setPadding(p, p, p, p)
+        }
+        val bar2 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            val p = Ui.dp(this@ArMeasureActivity, 12)
-            setPadding(p, p, p, p)
+            setPadding(0, Ui.dp(this@ArMeasureActivity, 6), 0, 0)
         }
         fun weighted() = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply {
             marginStart = Ui.dp(this@ArMeasureActivity, 4); marginEnd = Ui.dp(this@ArMeasureActivity, 4)
         }
+        bar2.addView(Ui.button(this, "＋ Нова зона", 0xFF1565C0.toInt()) { newZoneRequest = 1 }, weighted())
+        bar2.addView(Ui.button(this, "− Виріз (будинок)", 0xFFC62828.toInt()) { newZoneRequest = -1 }, weighted())
         bar.addView(Ui.button(this, "↶ Назад", Ui.GRAY) { undoRequested = true }, weighted())
         bar.addView(Ui.button(this, "＋ Точка", Ui.ORANGE) { addRequested = true }, weighted())
         bar.addView(Ui.button(this, "✔ Готово") { finishMeasure() }, weighted())
-        root.addView(bar, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
+        bottom.addView(bar2)
+        bottom.addView(bar)
+        root.addView(bottom, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
 
         setContentView(root)
     }
@@ -171,11 +185,15 @@ class ArMeasureActivity : Activity(), GLSurfaceView.Renderer {
     }
 
     private fun finishMeasure() {
-        if (pointCount < 3) {
+        if (openZonePoints in 1..2) {
+            Toast.makeText(this, "Поточна зона незакінчена — потрібно мінімум 3 точки", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (lastArea <= 0.0) {
             Toast.makeText(this, "Постав мінімум 3 точки по кутах ділянки", Toast.LENGTH_SHORT).show()
             return
         }
-        CalcActivity.start(this, lastArea, lastPerimeter)
+        CalcActivity.start(this, lastArea, lastPerimeter, lastCutPerimeter)
     }
 
     // ---------------- GL thread ----------------
@@ -222,49 +240,81 @@ class ArMeasureActivity : Activity(), GLSurfaceView.Renderer {
             t is Plane && t.isPoseInPolygon(h.hitPose) && t.type == Plane.Type.HORIZONTAL_UPWARD_FACING
         }
 
-        if (undoRequested) {
-            undoRequested = false
-            synchronized(anchors) { if (anchors.isNotEmpty()) anchors.removeAt(anchors.size - 1).detach() }
-        }
-        if (addRequested) {
-            addRequested = false
-            if (hit != null) {
-                synchronized(anchors) { anchors.add(hit.createAnchor()) }
-            } else {
-                runOnUiThread { Toast.makeText(this, "Поверхню ще не знайдено — приціл має бути зеленим", Toast.LENGTH_SHORT).show() }
+        val toast: String? = synchronized(contours) {
+            var msg: String? = null
+            val cur = contours.last()
+            if (undoRequested) {
+                undoRequested = false
+                if (cur.anchors.isNotEmpty()) cur.anchors.removeAt(cur.anchors.size - 1).detach()
+                else if (contours.size > 1) contours.removeAt(contours.size - 1)
             }
+            if (addRequested) {
+                addRequested = false
+                if (hit != null) contours.last().anchors.add(hit.createAnchor())
+                else msg = "Поверхню ще не знайдено — приціл має бути зеленим"
+            }
+            val req = newZoneRequest
+            if (req != 0) {
+                newZoneRequest = 0
+                val last = contours.last()
+                when {
+                    last.anchors.isEmpty() -> last.cut = req < 0
+                    last.anchors.size < 3 -> msg = "Спочатку закінчи поточну зону (мінімум 3 точки)"
+                    else -> contours.add(Contour(req < 0))
+                }
+                if (msg == null) msg = if (req < 0) "Виріз: обведи будинок / клумбу по кутах" else "Нова зона: обведи її по кутах"
+            }
+            msg
+        }
+        if (toast != null) runOnUiThread { Toast.makeText(this, toast, Toast.LENGTH_SHORT).show() }
+
+        // Snapshot world points of every zone
+        class Z(val cut: Boolean, val pts: List<FloatArray>)
+        val zones: List<Z> = synchronized(contours) {
+            contours.map { c -> Z(c.cut, c.anchors.map { a -> a.pose.let { p -> floatArrayOf(p.tx(), p.ty(), p.tz()) } }) }
         }
 
-        val world: List<FloatArray> = synchronized(anchors) {
-            anchors.map { a -> a.pose.let { p -> floatArrayOf(p.tx(), p.ty(), p.tz()) } }
+        overlay.polys = zones.map { z ->
+            val sc = FloatArray(z.pts.size * 2)
+            z.pts.forEachIndexed { i, w ->
+                val sp = project(w)
+                sc[i * 2] = sp?.get(0) ?: Float.NaN
+                sc[i * 2 + 1] = sp?.get(1) ?: Float.NaN
+            }
+            ScreenPoly(sc, z.cut)
         }
-        val screen = FloatArray(world.size * 2)
-        world.forEachIndexed { i, w ->
-            val sp = project(w)
-            screen[i * 2] = sp?.get(0) ?: Float.NaN
-            screen[i * 2 + 1] = sp?.get(1) ?: Float.NaN
-        }
-
         val cursorWorld = hit?.hitPose?.let { floatArrayOf(it.tx(), it.ty(), it.tz()) }
-        overlay.points = screen
         overlay.cursor = cursorWorld?.let { project(it) }
         overlay.hasHit = hit != null
         overlay.postInvalidate()
 
-        val area = Geo.area(world)
-        val perim = Geo.perimeter(world)
-        lastArea = area
-        lastPerimeter = perim
-        pointCount = world.size
+        var addArea = 0.0
+        var cutArea = 0.0
+        var addPerim = 0.0
+        var cutPerim = 0.0
+        for (z in zones) {
+            if (z.pts.size < 3) continue
+            if (z.cut) { cutArea += Geo.area(z.pts); cutPerim += Geo.perimeter(z.pts) }
+            else { addArea += Geo.area(z.pts); addPerim += Geo.perimeter(z.pts) }
+        }
+        val total = (addArea - cutArea).coerceAtLeast(0.0)
+        lastArea = total
+        lastPerimeter = addPerim
+        lastCutPerimeter = cutPerim
+        val current = zones.last()
+        openZonePoints = current.pts.size
 
         val sb = StringBuilder()
-        sb.append("Точок: ${world.size}")
-        if (world.size >= 3) sb.append("   Площа: ${Ui.fmt(area)} м²")
-        if (world.size >= 2) sb.append("\nПериметр: ${Ui.fmt(perim)} м")
-        if (world.isNotEmpty() && cursorWorld != null) {
-            sb.append("   Відрізок: ${Ui.fmt(Geo.dist(world.last(), cursorWorld))} м")
+        val zoneNo = zones.size
+        sb.append(if (current.cut) "✂ Виріз" else "▦ Зона").append(" $zoneNo, точок: ${current.pts.size}")
+        if (current.pts.isNotEmpty() && cursorWorld != null) {
+            sb.append("   Відрізок: ${Ui.fmt(Geo.dist(current.pts.last(), cursorWorld))} м")
         }
-        if (world.isEmpty()) {
+        sb.append("\nПлоща: ${Ui.fmt(total)} м²")
+        if (cutArea > 0) sb.append("  (${Ui.fmt(addArea)} − ${Ui.fmt(cutArea)})")
+        if (addPerim > 0) sb.append("\nПериметр: ${Ui.fmt(addPerim)} м")
+        if (cutPerim > 0) sb.append("   навколо вирізів: ${Ui.fmt(cutPerim)} м")
+        if (zones.size == 1 && current.pts.isEmpty()) {
             sb.append(if (hit != null) "\nНаведи приціл на перший кут і натисни «＋ Точка»"
                       else "\nШукаю поверхню… поводи телефоном")
         }

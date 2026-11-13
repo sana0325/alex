@@ -16,11 +16,13 @@ class CalcActivity : Activity() {
     companion object {
         private const val EXTRA_AREA = "area"
         private const val EXTRA_PERIM = "perim"
+        private const val EXTRA_CUT_PERIM = "cutPerim"
 
-        fun start(c: Context, area: Double, perimeter: Double) {
+        fun start(c: Context, area: Double, perimeter: Double, cutPerimeter: Double = 0.0) {
             c.startActivity(Intent(c, CalcActivity::class.java)
                 .putExtra(EXTRA_AREA, area)
-                .putExtra(EXTRA_PERIM, perimeter))
+                .putExtra(EXTRA_PERIM, perimeter)
+                .putExtra(EXTRA_CUT_PERIM, cutPerimeter))
         }
     }
 
@@ -64,6 +66,12 @@ class CalcActivity : Activity() {
         perimE = Ui.number(this, "м", if (perim > 0) Ui.fmt(perim) else "")
         root.addView(Ui.row(this, "Площа, м²", areaE), Ui.lp(this, 12))
         root.addView(Ui.row(this, "Периметр (бордюр), м", perimE), Ui.lp(this, 2))
+        val cutPerim = intent.getDoubleExtra(EXTRA_CUT_PERIM, 0.0)
+        if (cutPerim > 0) {
+            root.addView(Ui.text(this,
+                "Навколо вирізів (будинок, клумби): ${Ui.fmt(cutPerim)} м — додай до периметра, якщо там теж ставиш бордюр",
+                13f, color = Ui.GRAY), Ui.lp(this, 2))
+        }
 
         val presets = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         fun half() = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
